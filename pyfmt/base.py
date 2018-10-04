@@ -13,7 +13,12 @@ class Context():
         self.tab = tab
 
     def sub(self):
-        return Context(indent=self.indent+1)
+        return Context(
+            indent=self.indent+1,
+            max_line_length=self.max_line_length,
+            quote=self.quote,
+            tab=self.tab,
+        )
 
 def _format_arguments(value, context):
     """Format an argument like 'x, y = z'"""
@@ -22,7 +27,7 @@ def _format_arguments(value, context):
         parts.append(_format_value(arg, context))
     for kwarg in value.kwonlyargs:
         parts.append(_format_value(kwarg, context, pad_key=max_kwarg_key_len))
-    possible = ', '.join(parts)
+    possible = ", ".join(parts)
     return possible
 
 def _format_assign(value, context):
@@ -34,13 +39,13 @@ def _format_assign(value, context):
     )
 
 def _format_attribute(value, context):
-    return '{value}.{attr}'.format(
+    return "{value}.{attr}".format(
         value = _format_value(value.value, context),
         attr = _format_value(value.attr, context),
     )
 
 def _format_binop(value, context):
-    return '{left} {op} {right}'.format(
+    return "{left} {op} {right}".format(
         left  = _format_value(value.left, context),
         op    = _format_value(value.op, context),
         right = _format_value(value.right, context),
@@ -49,7 +54,7 @@ def _format_binop(value, context):
 def _format_body(body, context):
     lines = [_format_value(line, context) for line in body]
     tabbed_lines = [(context.tab * context.indent) + line for line in lines]
-    return '\n'.join(tabbed_lines)
+    return "\n".join(tabbed_lines)
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -65,8 +70,8 @@ def _format_call_horizontal(value, context):
     ] + [
         _format_value(kwarg, context) for kwarg in value.keywords
     ]
-    return '{func}({arguments})'.format(
-        arguments=', '.join(arguments),
+    return "{func}({arguments})".format(
+        arguments=", ".join(arguments),
         func=_format_value(value.func, context),
     )
 
@@ -80,12 +85,12 @@ def _format_call_vertical(value, context):
         _format_keyword(k, context, pad_key=max_kwarg_key_len) for k in value.keywords
     ]
     if args:
-        return '{func}({arguments})'.format(
-            arguments=',\n\t'.join(args + kwargs),
+        return "{func}({arguments})".format(
+            arguments=",\n\t".join(args + kwargs),
             func=_format_value(value.func, context)
         )
-    return '{func}(\n\t{kwargs})'.format(
-        kwargs=',\n\t'.join(kwargs),
+    return "{func}(\n\t{kwargs})".format(
+        kwargs=",\n\t".join(kwargs),
         func=_format_value(value.func, context))
 
 def _format_comprehension(value, context):
@@ -100,7 +105,7 @@ def _format_expression(value, context):
 def _format_function_def(func, context):
     arguments = _format_value(func.args, context)
     body = _format_body(func.body, context=context.sub())
-    return 'def {name}({arguments}):\n{body}'.format(
+    return "def {name}({arguments}):\n{body}".format(
         name=func.name,
         arguments=arguments,
         body=body,
@@ -122,7 +127,7 @@ def _format_keyword(value, context, pad_key=None):
     )
 
 def _format_multiplication(value, context):
-    return '*'
+    return "*"
 
 def _format_name(value, context):
     return str(value.id)
@@ -131,10 +136,10 @@ def _format_number(value, context):
     return str(value.n)
 
 def _format_return(value, context):
-    return 'return {}'.format(_format_value(value.value, context))
+    return "return {}".format(_format_value(value.value, context))
 
 def _format_string(value, context):
-    return '{quote}{string}{quote}'.format(
+    return "{quote}{string}{quote}".format(
         quote=context.quote,
         string=value.s)
 
@@ -146,10 +151,10 @@ def _format_targets(targets):
         elif type(target) == ast.Tuple:
             for elt in target.elts:
                 result.append(elt.id)
-    return ', '.join(result)
+    return ", ".join(result)
 
 def _format_tuple(value, context):
-    return ', '.join([_format_value(elt, context) for elt in value.elts])
+    return ", ".join([_format_value(elt, context) for elt in value.elts])
 
 def _format_value(value, context):
     formatter = FORMATTERS.get(type(value))
@@ -158,7 +163,7 @@ def _format_value(value, context):
     return formatter(value, context)
 
 FORMATTERS = {
-    ast.Add: lambda x, y: '+',
+    ast.Add: lambda x, y: "+",
     ast.arg: lambda x, y: x.arg,
     ast.arguments: _format_arguments,
     ast.Assign: _format_assign,
@@ -173,19 +178,19 @@ FORMATTERS = {
     ast.Mult: _format_multiplication,
     ast.Name: _format_name,
     ast.Num: _format_number,
-    ast.Pow: lambda x, yz: '**',
+    ast.Pow: lambda x, yz: "**",
     ast.Return: _format_return,
     str: lambda x, y: x,
     ast.Str: _format_string,
     ast.Tuple: _format_tuple,
 }
 
-def serialize(content, max_line_length=120, quote="'", tab='\t'):
+def serialize(content, max_line_length=120, quote="\"", tab="\t"):
     data = ast.parse(content)
     context = Context(
         indent=0,
         max_line_length=max_line_length,
         quote=quote,
         tab=tab)
-    return '\n'.join([
-        FORMATTERS[type(part)](part, context) for part in data.body]) + '\n'
+    return "\n".join([
+        FORMATTERS[type(part)](part, context) for part in data.body]) + "\n"

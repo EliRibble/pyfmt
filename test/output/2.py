@@ -1,3 +1,3 @@
 def main():
-	foo = 'hello world'
+	foo = "hello world"
 	print(foo)

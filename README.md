@@ -14,6 +14,6 @@ Since pyfmt prohibits drawing ASCII art in anything but comments, you don't lose
 
 Tabs it is.
 
-## Single quotes?
+## Double quotes?
 
-Eh, no reason, I just picked one.
+Because Google requires double quotes for docstrings and I prefer to have quotes fully consistent
