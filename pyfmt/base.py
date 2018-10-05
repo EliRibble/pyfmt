@@ -51,9 +51,34 @@ def _format_binop(value, context):
         right = _format_value(value.right, context),
     )
 
+def _split_imports(body):
+    """Given a body reurn the import statemens and remaining statements."""
+    imports = []
+    remainder = []
+    in_imports = True
+    for line in body:
+        if in_imports:
+            if type(line) in (ast.Import, ast.ImportFrom):
+                imports.append(line)
+            else:
+                in_imports = False
+        if not in_imports:
+            remainder.append(line)
+    return imports, remainder
+
 def _format_body(body, context):
-    lines = [_format_value(line, context) for line in body]
-    tabbed_lines = [(context.tab * context.indent) + line for line in lines]
+    """Format a body like a function or module body.
+
+    This breaks the body into large sections for the sake
+    of sorting certain orderable statements within those
+    sections, like imports.
+    """
+    imports, remainder = _split_imports(body)
+    import_lines = [_format_value(line, context) for line in imports]
+    import_section = sorted(import_lines)
+    remainder_section = [_format_value(line, context) for line in remainder]
+    content = import_section + remainder_section
+    tabbed_lines = [(context.tab * context.indent) + line for line in content]
     return "\n".join(tabbed_lines)
 
 def _format_call(value, context):
@@ -203,5 +228,4 @@ def serialize(content, max_line_length=120, quote="\"", tab="\t"):
         max_line_length=max_line_length,
         quote=quote,
         tab=tab)
-    return "\n".join([
-        FORMATTERS[type(part)](part, context) for part in data.body]) + "\n"
+    return _format_body(data.body, context) + "\n"
