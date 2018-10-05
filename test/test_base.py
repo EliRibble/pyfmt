@@ -19,8 +19,8 @@ def test_generate_format_tests():
 def test_format(filename):
     inputfile = os.path.join(INPUT_DIRECTORY, filename)
     outputfile = os.path.join(OUTPUT_DIRECTORY, filename)
-    assert os.path.exists(inputfile)
-    assert os.path.exists(outputfile)
+    assert os.path.exists(inputfile), "test isn't sane, got a filename that isn't there"
+    assert os.path.exists(outputfile), "missing output file for {}. It should be at {}".format(inputfile, outputfile)
     with open(inputfile, 'r') as f:
         content = f.read()
     output = pyfmt.base.serialize(content, max_line_length=80, quote="\"", tab="\t")
