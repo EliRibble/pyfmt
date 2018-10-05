@@ -111,6 +111,15 @@ def _format_function_def(func, context):
         body=body,
     )
 
+def _format_import(imp, context):
+    return "import {}".format(
+        ', '.join(sorted(n.name for n in imp.names)))
+
+def _format_import_from(imp, context):
+    return "from {} import {}".format(
+        imp.module,
+        ', '.join(sorted(n.name for n in imp.names)))
+
 def _format_list_comprehension(comp, context):
     assert len(comp.generators) == 1
     return "[{elt} {generators}]".format(
@@ -173,6 +182,8 @@ FORMATTERS = {
     ast.comprehension: _format_comprehension,
     ast.Expr: _format_expression,
     ast.FunctionDef: _format_function_def,
+    ast.Import: _format_import,
+    ast.ImportFrom: _format_import_from,
     ast.ListComp: _format_list_comprehension,
     ast.keyword: _format_keyword,
     ast.Mult: _format_multiplication,
