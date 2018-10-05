@@ -1,5 +1,7 @@
 import ast
 
+from pyfmt import constants
+
 class Context():
     """Represents the context of the operation being serialized.
 
@@ -53,18 +55,32 @@ def _format_binop(value, context):
 
 def _split_imports(body):
     """Given a body reurn the import statemens and remaining statements."""
-    imports = []
-    remainder = []
+    imports    = []
+    remainder  = []
+    stdimports = []
     in_imports = True
     for line in body:
         if in_imports:
-            if type(line) in (ast.Import, ast.ImportFrom):
-                imports.append(line)
+            if isinstance(line, ast.Import):
+                for alias in line.names:
+                    if alias.name in constants.STANDARD_PYTHON_MODULES:
+                        stdimports.append(ast.Import(names=[alias]))
+                    else:
+                        imports.append(ast.Import(names=[alias]))
+            elif isinstance(line, ast.ImportFrom):
+                new_imports = [ast.ImportFrom(
+                    module=line.module,
+                    names=[name],
+                ) for name in line.names]
+                if line.module in constants.STANDARD_PYTHON_MODULES:
+                    stdimports += new_imports
+                else:
+                    imports += new_imports
             else:
                 in_imports = False
         if not in_imports:
             remainder.append(line)
-    return imports, remainder
+    return stdimports, imports, remainder
 
 def _format_body(body, context):
     """Format a body like a function or module body.
@@ -73,13 +89,18 @@ def _format_body(body, context):
     of sorting certain orderable statements within those
     sections, like imports.
     """
-    imports, remainder = _split_imports(body)
-    import_lines = [_format_value(line, context) for line in imports]
-    import_section = sorted(import_lines)
-    remainder_section = [_format_value(line, context) for line in remainder]
-    content = import_section + remainder_section
-    tabbed_lines = [(context.tab * context.indent) + line for line in content]
-    return "\n".join(tabbed_lines)
+    sections = _split_imports(body)
+    section_lines = [
+        [(context.tab * context.indent) + _format_value(line, context) for line in section]
+        for section in sections
+    ]
+    # Only sort the first two sections, which are stdlib import and
+    # regular import, respectively
+    section_lines[0] = sorted(section_lines[0])
+    section_lines[1] = sorted(section_lines[1])
+
+    section_lines = ['\n'.join(sl) for sl in section_lines if sl]
+    return "\n\n".join(section_lines)
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
