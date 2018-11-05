@@ -14,6 +14,18 @@ class Context():
         self.quote = quote
         self.tab = tab
 
+    def override(self, **kwargs):
+        """Create a new context with the provided overrides.
+
+        For example, if you have a context A and want to produce a context
+        B that is identical to A but has a different quote delimitre you would
+        use A.override(quote="foo")
+        """
+        VALID_PARAMS = ("indent", "max_line_length", "quote", "tab")
+        assert all(k in VALID_PARAMS for k in kwargs.keys())
+        params = {k: kwargs.get(k, getattr(self, k)) for k in VALID_PARAMS}
+        return Context(**params)
+
     def sub(self):
         return Context(
             indent=self.indent+1,
