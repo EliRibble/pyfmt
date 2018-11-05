@@ -65,35 +65,6 @@ def _format_binop(value, context):
         right = _format_value(value.right, context),
     )
 
-def _split_imports(body):
-    """Given a body reurn the import statemens and remaining statements."""
-    imports    = []
-    remainder  = []
-    stdimports = []
-    in_imports = True
-    for line in body:
-        if in_imports:
-            if isinstance(line, ast.Import):
-                for alias in line.names:
-                    if alias.name in constants.STANDARD_PYTHON_MODULES:
-                        stdimports.append(ast.Import(names=[alias]))
-                    else:
-                        imports.append(ast.Import(names=[alias]))
-            elif isinstance(line, ast.ImportFrom):
-                new_imports = [ast.ImportFrom(
-                    module=line.module,
-                    names=[name],
-                ) for name in line.names]
-                if line.module in constants.STANDARD_PYTHON_MODULES:
-                    stdimports += new_imports
-                else:
-                    imports += new_imports
-            else:
-                in_imports = False
-        if not in_imports:
-            remainder.append(line)
-    return stdimports, imports, remainder
-
 def _format_body(body, context):
     """Format a body like a function or module body.
 
@@ -101,9 +72,13 @@ def _format_body(body, context):
     of sorting certain orderable statements within those
     sections, like imports.
     """
-    sections = _split_imports(body)
+    stdimports, imports, remainder = _split_imports(body)
+    doc, remainder = _split_docstring(remainder)
+    docstring = _format_docstring(doc, context)
+    sections = (stdimports, imports, docstring, remainder)
+
     section_lines = [
-        [(context.tab * context.indent) + _format_value(line, context) for line in section]
+        [_pad_line(line, context)  for line in section]
         for section in sections
     ]
     # Only sort the first two sections, which are stdlib import and
@@ -111,8 +86,12 @@ def _format_body(body, context):
     section_lines[0] = sorted(section_lines[0])
     section_lines[1] = sorted(section_lines[1])
 
-    section_lines = ['\n'.join(sl) for sl in section_lines if sl]
-    return "\n\n".join(section_lines)
+    section_blocks = ['\n'.join(sl) for sl in section_lines]
+    stdimports, imports, docstring, content = section_blocks
+    stdimports = stdimports + "\n\n" if stdimports else ""
+    imports = imports + "\n\n" if imports else ""
+    docstring = docstring + "\n" if docstring else ""
+    return (stdimports + imports + docstring + content).rstrip()
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -156,6 +135,25 @@ def _format_comprehension(value, context):
         target=_format_value(value.target, context),
         iter=_format_value(value.iter, context),
     )
+
+def _format_docstring(value, context):
+    """Given a single expression known to be a docstring apply special formatting.
+
+    Returns:
+        A list of lines
+    """
+    # A docstring will be a single really long string expression, often with
+    # embedded tabs for formatting. We need to rip those out to apply our own
+    # formatting.
+    if not value:
+        return []
+    content = _format_expression(value, context)
+    if "\n" in content:
+        context = context.override(quote="\"\"\"")
+        content = _format_expression(value, context)
+    lines = content.split('\n')
+    docstring = [line.strip() for line in lines]
+    return docstring
 
 def _format_expression(value, context):
     return _format_value(value.value, context)
@@ -228,6 +226,46 @@ def _format_value(value, context):
     if formatter is None:
         raise Exception("Need to write a formatter for {}".format(type(value)))
     return formatter(value, context)
+
+def _pad_line(line, context):
+    if line == "":
+        return ""
+    return (context.tab * context.indent) + _format_value(line, context)
+
+def _split_docstring(remainder):
+    """Given the non-import sections of a body, return the docstring and remainder."""
+    if not (remainder and isinstance(remainder[0], ast.Expr) and isinstance(remainder[0].value, ast.Str)):
+        return [], remainder
+    return remainder[0], remainder[1:]
+
+def _split_imports(body):
+    """Given a body reurn the import statemens and remaining statements."""
+    imports    = []
+    remainder  = []
+    stdimports = []
+    in_imports = True
+    for line in body:
+        if in_imports:
+            if isinstance(line, ast.Import):
+                for alias in line.names:
+                    if alias.name in constants.STANDARD_PYTHON_MODULES:
+                        stdimports.append(ast.Import(names=[alias]))
+                    else:
+                        imports.append(ast.Import(names=[alias]))
+            elif isinstance(line, ast.ImportFrom):
+                new_imports = [ast.ImportFrom(
+                    module=line.module,
+                    names=[name],
+                ) for name in line.names]
+                if line.module in constants.STANDARD_PYTHON_MODULES:
+                    stdimports += new_imports
+                else:
+                    imports += new_imports
+            else:
+                in_imports = False
+        if not in_imports:
+            remainder.append(line)
+    return stdimports, imports, remainder
 
 FORMATTERS = {
     ast.Add: lambda x, y: "+",

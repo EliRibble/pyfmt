@@ -26,4 +26,4 @@ def test_format(filename):
     output = pyfmt.base.serialize(content, max_line_length=80, quote="\"", tab="\t")
     with open(outputfile, 'r') as f:
         expected = f.read()
-    assert output == expected, "\nDiff:\n{}\n---------\n{}".format(output, expected)
+    assert output == expected, "\nDiff:\n{}---------\n{}".format(output, expected)
