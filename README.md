@@ -17,3 +17,7 @@ Tabs it is.
 ## Double quotes?
 
 Because Google requires double quotes for docstrings and I prefer to have quotes fully consistent
+
+# Hacking
+
+Create a virtualenv. `pip install -e .` at the root of the repository. `nose2` to run tests.
