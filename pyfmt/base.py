@@ -74,8 +74,9 @@ def _format_body(body, context):
     """
     stdimports, imports, remainder = _split_imports(body)
     doc, remainder = _split_docstring(remainder)
+    constants, remainder = _split_constants(remainder)
     docstring = _format_docstring(doc, context)
-    sections = (stdimports, imports, docstring, remainder)
+    sections = (stdimports, imports, docstring, constants, remainder)
 
     section_lines = [
         [_pad_line(line, context)  for line in section]
@@ -87,11 +88,12 @@ def _format_body(body, context):
     section_lines[1] = sorted(section_lines[1])
 
     section_blocks = ['\n'.join(sl) for sl in section_lines]
-    stdimports, imports, docstring, content = section_blocks
+    stdimports, imports, docstring, constants, content = section_blocks
     stdimports = stdimports + "\n\n" if stdimports else ""
     imports = imports + "\n\n" if imports else ""
     docstring = docstring + "\n" if docstring else ""
-    return (stdimports + imports + docstring + content).rstrip()
+    constants = constants + "\n\n" if constants else ""
+    return (stdimports + imports + docstring + constants + content).rstrip()
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -276,6 +278,14 @@ def _pad_line(line, context):
     if line == "":
         return ""
     return (context.tab * context.indent) + _format_value(line, context)
+
+def _split_constants(remainder):
+    "Given the remainder of a body return the constants and whatever else is left."
+    constants = []
+    while remainder and isinstance(remainder[0], ast.Assign):
+        constants.append(remainder[0])
+        remainder = remainder[1:]
+    return constants, remainder
 
 def _split_docstring(remainder):
     """Given the non-import sections of a body, return the docstring and remainder."""
