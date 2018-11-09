@@ -1,4 +1,5 @@
 biff = "biff"
+
 print("{all}-{the}_{small}+{things}".format(
 	all    = 1 * 2,
 	the    = "foo" + "bar",

@@ -75,20 +75,13 @@ def _format_body(body, context):
     stdimports, imports, remainder = _split_imports(body)
     doc, remainder = _split_docstring(remainder)
     constants, remainder = _split_constants(remainder)
+    constants = _format_constants(constants, context)
     docstring = _format_docstring(doc, context)
-    sections = (stdimports, imports, docstring, constants, remainder)
+    stdimports = _format_imports(stdimports, context)
+    imports = _format_imports(imports, context)
 
-    section_lines = [
-        [_pad_line(line, context)  for line in section]
-        for section in sections
-    ]
-    # Only sort the first two sections, which are stdlib import and
-    # regular import, respectively
-    section_lines[0] = sorted(section_lines[0])
-    section_lines[1] = sorted(section_lines[1])
+    content = _joiner(remainder, context)
 
-    section_blocks = ['\n'.join(sl) for sl in section_lines]
-    stdimports, imports, docstring, constants, content = section_blocks
     stdimports = stdimports + "\n\n" if stdimports else ""
     imports = imports + "\n\n" if imports else ""
     docstring = docstring + "\n" if docstring else ""
@@ -145,6 +138,10 @@ def _format_comprehension(value, context):
         iter=_format_value(value.iter, context),
     )
 
+def _format_constants(constants, context):
+    lines = [(context.indent * context.tab) + _format_value(c, context) for c in constants]
+    return "\n".join(sorted(lines))
+
 def _format_dict(value, context):
     "Format a dictionary, choosing the best approach of several"
     data = {
@@ -185,8 +182,9 @@ def _format_docstring(value, context):
         context = context.override(quote="\"\"\"")
         content = _format_expression(value, context)
     lines = content.split('\n')
-    docstring = [line.strip() for line in lines]
-    return docstring
+    docstring = [
+        (context.indent * context.tab) + line.strip() if line else "" for line in lines]
+    return "\n".join(docstring)
 
 def _format_eq(value, context):
     return "=="
@@ -216,6 +214,10 @@ def _format_import_from(imp, context):
     return "from {} import {}".format(
         imp.module,
         ', '.join(sorted(n.name for n in imp.names)))
+
+def _format_imports(imports, context):
+    lines = [_format_value(i, context) for i in imports]
+    return "\n".join(sorted(lines))
 
 def _format_list(value, context):
     return "list"
@@ -274,15 +276,39 @@ def _format_value(value, context):
         raise Exception("Need to write a formatter for {}".format(type(value)))
     return formatter(value, context)
 
-def _pad_line(line, context):
-    if line == "":
+def _joiner(section, context):
+    """Join a section into well-formatte lines.
+
+    Take a section, which is a list of AST items to put together in a block which
+    is one giant, properly formatted strings.
+    """
+    if not section:
         return ""
-    return (context.tab * context.indent) + _format_value(line, context)
+    JOINERS = {
+        ast.FunctionDef: "\n\n",
+    }
+    lines = []
+    result = ""
+    joiner = ""
+    for node in section:
+        # only add the joiner if this is not the last iteration
+        result += joiner
+        joiner = JOINERS.get(type(node), "\n")
+        content = _format_value(node, context)
+        result = result + (context.tab * context.indent) + content
+    return result
 
 def _split_constants(remainder):
     "Given the remainder of a body return the constants and whatever else is left."
     constants = []
     while remainder and isinstance(remainder[0], ast.Assign):
+        node = remainder[0]
+        if len(node.targets) > 1:
+            break;
+        if not isinstance(node.targets[0], ast.Name):
+            break;
+        if type(node.value) not in (ast.NameConstant, ast.Str,):
+            break;
         constants.append(remainder[0])
         remainder = remainder[1:]
     return constants, remainder

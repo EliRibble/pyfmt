@@ -1,8 +1,8 @@
 from datetime import datetime
 import time
 
-SOME_CONSTANT = True
 ANOTHER_CONSTNAT = False
+SOME_CONSTANT = True
 
 def main():
 	"Nothing here but us chickens"

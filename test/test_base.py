@@ -26,4 +26,24 @@ def test_format(filename):
     output = pyfmt.base.serialize(content, max_line_length=80, quote="\"", tab="\t")
     with open(outputfile, 'r') as f:
         expected = f.read()
-    assert output == expected, "\n--------- output:\n{}--------- expected: \n{}".format(output, expected)
+    assert output == expected, _get_diff(output, expected)
+
+def _get_diff(output, expected):
+    line = 0;
+    char = 0;
+    for i, c in enumerate(expected):
+        if c != output[i]:
+            break
+        if c == "\n":
+            line += 1
+            char = 0
+        char += 1
+    return ("\n"
+            "--------- output:\n{output}\n"
+            "--------- expected:\n{expected}\n"
+            "--------- Failure line {line} char {char}\n").format(
+            char=char,
+            expected=expected,
+            line=line,
+            output=output,
+    )

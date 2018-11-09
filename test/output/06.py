@@ -1,4 +1,5 @@
 biff = "biff"
+
 baz = "{all} {the} {small} {things}".format(
 	all    = 1 * 2,
 	the    = "foo" + "bar",
