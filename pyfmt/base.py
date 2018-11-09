@@ -142,11 +142,20 @@ def _format_dict(value, context):
         _format_value(k, context):
         _format_value(v, context) for k, v in zip(value.keys, value.values)}
     ordering = sorted(data.keys())
-    pairs = (
-        (k, data[k]) for k in ordering)
-    return _format_dict_short(value, context, pairs)
+    pairs = [
+        (k, data[k]) for k in ordering]
+    short = _format_dict_short(pairs, context)
+    if len(short) <= context.max_line_length:
+        return short
+    medium = _format_dict_medium(pairs, context)
+    return medium
 
-def _format_dict_short(value, context, pairs):
+def _format_dict_medium(pairs, context):
+    "Format a dictionary as if were medium length, one key/value pair per line"
+    parts = ["{}: {},".format(k, v) for k, v in pairs]
+    return "{{\n\t{}\n}}".format("\n\t".join(parts))
+
+def _format_dict_short(pairs, context):
     "Format a dictionary as if it were quite short"
     parts = ["{}: {}".format(k, v) for k, v in pairs]
     return "{{{}}}".format(", ".join(parts))
