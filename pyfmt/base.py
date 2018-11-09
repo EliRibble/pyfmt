@@ -130,6 +130,13 @@ def _format_call_vertical(value, context):
         kwargs=",\n\t".join(kwargs),
         func=_format_value(value.func, context))
 
+def _format_compare(value, context):
+    return "{left} {op} {right}".format(
+        left=_format_value(value.left, context),
+        op=_format_value(value.ops[0], context),
+        right=_format_value(value.comparators[0], context),
+    )
+
 def _format_comprehension(value, context):
     return "for {target} in {iter}".format(
         target=_format_value(value.target, context),
@@ -179,6 +186,9 @@ def _format_docstring(value, context):
     docstring = [line.strip() for line in lines]
     return docstring
 
+def _format_eq(value, context):
+    return "=="
+
 def _format_expression(value, context):
     return _format_value(value.value, context)
 
@@ -191,6 +201,11 @@ def _format_function_def(func, context):
         body=body,
     )
 
+def _format_if(value, context):
+    test = _format_value(value.test, context)
+    body = _format_body(value.body, context.sub())
+    return "if {}:\n{}".format(test, body)
+
 def _format_import(imp, context):
     return "import {}".format(
         ', '.join(sorted(n.name for n in imp.names)))
@@ -199,6 +214,9 @@ def _format_import_from(imp, context):
     return "from {} import {}".format(
         imp.module,
         ', '.join(sorted(n.name for n in imp.names)))
+
+def _format_list(value, context):
+    return "list"
 
 def _format_list_comprehension(comp, context):
     assert len(comp.generators) == 1
@@ -302,12 +320,16 @@ FORMATTERS = {
     ast.Attribute: _format_attribute,
     ast.BinOp: _format_binop,
     ast.Call: _format_call,
+    ast.Compare: _format_compare,
     ast.comprehension: _format_comprehension,
     ast.Dict: _format_dict,
+    ast.Eq: _format_eq,
     ast.Expr: _format_expression,
     ast.FunctionDef: _format_function_def,
+    ast.If: _format_if,
     ast.Import: _format_import,
     ast.ImportFrom: _format_import_from,
+    ast.List: _format_list,
     ast.ListComp: _format_list_comprehension,
     ast.keyword: _format_keyword,
     ast.Mult: _format_multiplication,
