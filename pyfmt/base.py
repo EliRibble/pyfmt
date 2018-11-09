@@ -136,6 +136,21 @@ def _format_comprehension(value, context):
         iter=_format_value(value.iter, context),
     )
 
+def _format_dict(value, context):
+    "Format a dictionary, choosing the best approach of several"
+    data = {
+        _format_value(k, context):
+        _format_value(v, context) for k, v in zip(value.keys, value.values)}
+    ordering = sorted(data.keys())
+    pairs = (
+        (k, data[k]) for k in ordering)
+    return _format_dict_short(value, context, pairs)
+
+def _format_dict_short(value, context, pairs):
+    "Format a dictionary as if it were quite short"
+    parts = ["{}: {}".format(k, v) for k, v in pairs]
+    return "{{{}}}".format(", ".join(parts))
+
 def _format_docstring(value, context):
     """Given a single expression known to be a docstring apply special formatting.
 
@@ -196,6 +211,9 @@ def _format_multiplication(value, context):
 
 def _format_name(value, context):
     return str(value.id)
+
+def _format_name_constant(value, context):
+    return str(value.value)
 
 def _format_number(value, context):
     return str(value.n)
@@ -276,6 +294,7 @@ FORMATTERS = {
     ast.BinOp: _format_binop,
     ast.Call: _format_call,
     ast.comprehension: _format_comprehension,
+    ast.Dict: _format_dict,
     ast.Expr: _format_expression,
     ast.FunctionDef: _format_function_def,
     ast.Import: _format_import,
@@ -284,6 +303,7 @@ FORMATTERS = {
     ast.keyword: _format_keyword,
     ast.Mult: _format_multiplication,
     ast.Name: _format_name,
+    ast.NameConstant: _format_name_constant,
     ast.Num: _format_number,
     ast.Pow: lambda x, yz: "**",
     ast.Return: _format_return,
