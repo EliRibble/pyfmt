@@ -171,6 +171,7 @@ STANDARD_PYTHON_MODULES = (
     "textwrap",
     "this",
     "threading",
+    "time",
     "timeit",
     "tkinter",
     "token",
