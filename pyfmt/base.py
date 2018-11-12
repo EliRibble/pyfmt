@@ -1,4 +1,8 @@
 import ast
+import functools
+import logging
+import token
+import tokenize
 
 from pyfmt import constants
 
@@ -8,12 +12,31 @@ class Context():
     This class is used heavily in making decisions about the application
     of whitespace.
     """
-    def __init__(self, indent=0, inline=False, max_line_length=120, quote="'", tab='\t'):
+    def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", tab='\t'):
+        self.comments = comments or []
         self.indent = indent
         self.inline = inline
         self.max_line_length = max_line_length
         self.quote = quote
         self.tab = tab
+
+    def get_comments(self, lineno, col_offset):
+        """Return a list of comments that match the provided line and col
+        
+        This will mutate self.comments to remove the comment that is returned.
+        This prevents comments from being written multiple times
+        """
+        results = []
+        start = lineno - 1
+        if start >= len(self.comments):
+            return []
+        while self.comments[start - 1]:
+            start -= 1
+        for i in range(start, lineno):
+            if self.comments[i]:
+                results.append(self.comments[i][2])
+                self.comments[i] = None
+        return results
 
     def override(self, **kwargs):
         """Create a new context with the provided overrides.
@@ -276,7 +299,9 @@ def _format_value(value, context):
     formatter = FORMATTERS.get(type(value))
     if formatter is None:
         raise Exception("Need to write a formatter for {}".format(type(value)))
-    return formatter(value, context)
+    comments = context.get_comments(value.lineno, value.col_offset) if hasattr(value, 'lineno') else []
+    result = formatter(value, context)
+    return "\n".join(comments + [result])
 
 def _joiner(section, context):
     """Join a section into well-formatte lines.
@@ -381,9 +406,44 @@ FORMATTERS = {
     ast.Tuple: _format_tuple,
 }
 
+class ReadLine():
+    def __init__(self, content):
+        self.content = content
+        self.index = 0
+        logging.debug("Full content: '%s'", content)
+
+    def __call__(self):
+        if self.index == -1:
+            raise StopIteration
+        try:
+            next_index = self.content.index("\n", self.index + 1)
+        except ValueError:
+            self.index = -1
+            result = self.content[self.index+1:]
+            return result.encode("utf-8")
+        line = self.content[self.index:next_index]
+        self.index = next_index + 1
+        return line.encode("utf-8")
+
+def _extract_comments(content):
+    "Given content get all comments and their locations"
+    results = []
+    buf = ReadLine(content)
+    for token_type, tok, begin, end, line in tokenize.tokenize(buf):
+        if token_type == token.N_TOKENS:
+            if begin[0] >= len(results):
+                new_slots = begin[0] - len(results) + 1
+                results.extend([None] * new_slots)
+            results[begin[0]] = (begin[0], begin[1], tok)
+        else:
+            logging.debug("Skip %s at %s", token.tok_name[token_type], begin)
+    return results
+
 def serialize(content, max_line_length=120, quote="\"", tab="\t"):
     data = ast.parse(content)
+    comments = _extract_comments(content)
     context = Context(
+        comments=comments,
         indent=0,
         max_line_length=max_line_length,
         quote=quote,
