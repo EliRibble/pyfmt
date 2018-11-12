@@ -8,8 +8,9 @@ class Context():
     This class is used heavily in making decisions about the application
     of whitespace.
     """
-    def __init__(self, indent=0, max_line_length=120, quote="'", tab='\t'):
+    def __init__(self, indent=0, inline=False, max_line_length=120, quote="'", tab='\t'):
         self.indent = indent
+        self.inline = inline
         self.max_line_length = max_line_length
         self.quote = quote
         self.tab = tab
@@ -21,7 +22,7 @@ class Context():
         B that is identical to A but has a different quote delimitre you would
         use A.override(quote="foo")
         """
-        VALID_PARAMS = ("indent", "max_line_length", "quote", "tab")
+        VALID_PARAMS = ("indent", "inline", "max_line_length", "quote", "tab")
         assert all(k in VALID_PARAMS for k in kwargs.keys())
         params = {k: kwargs.get(k, getattr(self, k)) for k in VALID_PARAMS}
         return Context(**params)
@@ -72,8 +73,8 @@ def _format_body(body, context):
     of sorting certain orderable statements within those
     sections, like imports.
     """
-    stdimports, imports, remainder = _split_imports(body)
-    doc, remainder = _split_docstring(remainder)
+    doc, remainder = _split_docstring(body)
+    stdimports, imports, remainder = _split_imports(remainder)
     constants, remainder = _split_constants(remainder)
     constants = _format_constants(constants, context)
     docstring = _format_docstring(doc, context)
@@ -86,7 +87,7 @@ def _format_body(body, context):
     imports = imports + "\n\n" if imports else ""
     docstring = docstring + "\n" if docstring else ""
     constants = constants + "\n\n" if constants else ""
-    return (stdimports + imports + docstring + constants + content).rstrip()
+    return (docstring + stdimports + imports + constants + content).rstrip()
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -100,7 +101,7 @@ def _format_call_horizontal(value, context):
     arguments = [
         _format_value(arg, context) for arg in value.args
     ] + [
-        _format_value(kwarg, context) for kwarg in value.keywords
+        _format_value(kwarg, context.override(inline=True)) for kwarg in value.keywords
     ]
     return "{func}({arguments})".format(
         arguments=", ".join(arguments),
@@ -231,9 +232,10 @@ def _format_list_comprehension(comp, context):
 
 def _format_keyword(value, context, pad_key=None):
     pad_key = pad_key or len(value.arg)
-    pattern = "{{arg: <{}}} = {{value}}".format(pad_key)
+    pattern = "{{arg: <{}}}{{equals}}{{value}}".format(pad_key)
     return pattern.format(
         arg = value.arg,
+        equals = "=" if context.inline else " = ",
         value = _format_value(value.value, context),
     )
 
