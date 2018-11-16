@@ -1,5 +1,6 @@
 import ast
 import collections
+import contextlib
 import functools
 import logging
 import token
@@ -24,13 +25,25 @@ class Context():
         self.quote = quote
         self.tab = tab
 
+    def do_indent(self, lines, tail=False):
+        """Indent a list of lines
+
+        Args:
+            lines: a list of lines to indent and join
+            tail: if true, add a trailing newline and indent
+        """
+        separator = ("\n" + ("\t" * self.indent))
+        if tail:
+            return separator.join(lines + [""])
+        return separator.join(lines)
+
     def get_all_comments(self):
         """Gets all remaining comments"""
         results = []
         for i in range(len(self.comments)):
             if self.comments[i] and not self._comments_usage[i]:
                 results.append(self.comments[i].content)
-        return "\n".join(results)
+        return results
 
     def get_comments(self, lineno, col_offset):
         """Return a list of comments that match the provided line and col
@@ -62,13 +75,11 @@ class Context():
         params = {k: kwargs.get(k, getattr(self, k)) for k in VALID_PARAMS}
         return Context(**params)
 
+    @contextlib.contextmanager
     def sub(self):
-        return Context(
-            indent=self.indent+1,
-            max_line_length=self.max_line_length,
-            quote=self.quote,
-            tab=self.tab,
-        )
+        self.indent += 1
+        yield self
+        self.indent -= 1
 
 def _format_arguments(value, context):
     """Format an argument like 'x, y = z'"""
@@ -117,12 +128,13 @@ def _format_body(body, context):
     imports = _format_imports(imports, context)
 
     content = _joiner(remainder, context)
+    trailing_comments = context.get_all_comments()
+    trailing_comments = context.do_indent(trailing_comments)
 
     stdimports = stdimports + "\n\n" if stdimports else ""
     imports = imports + "\n\n" if imports else ""
     docstring = docstring + "\n" if docstring else ""
     constants = constants + "\n\n" if constants else ""
-    trailing_comments = context.get_all_comments()
     trailing_comments = "\n" + trailing_comments if trailing_comments else ""
     return (docstring + stdimports + imports + constants + content + trailing_comments).rstrip()
 
@@ -232,7 +244,8 @@ def _format_expression(value, context):
 
 def _format_function_def(func, context):
     arguments = _format_value(func.args, context)
-    body = _format_body(func.body, context=context.sub())
+    with context.sub() as sub:
+        body = _format_body(func.body, context=context)
     return "def {name}({arguments}):\n{body}".format(
         name=func.name,
         arguments=arguments,
@@ -241,7 +254,8 @@ def _format_function_def(func, context):
 
 def _format_if(value, context):
     test = _format_value(value.test, context)
-    body = _format_body(value.body, context.sub())
+    with context.sub() as sub:
+        body = _format_body(value.body, context)
     return "if {}:\n{}".format(test, body)
 
 def _format_import(imp, context):
@@ -314,8 +328,9 @@ def _format_value(value, context):
     if formatter is None:
         raise Exception("Need to write a formatter for {}".format(type(value)))
     comments = context.get_comments(value.lineno, value.col_offset) if hasattr(value, 'lineno') else []
+    comments = context.do_indent(comments, tail=True)
     result = formatter(value, context)
-    return "\n".join(comments + [result])
+    return comments + result
 
 def _joiner(section, context):
     """Join a section into well-formatte lines.
