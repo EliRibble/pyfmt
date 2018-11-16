@@ -1,4 +1,5 @@
 import ast
+import collections
 import functools
 import logging
 import token
@@ -6,6 +7,8 @@ import tokenize
 
 from pyfmt import constants
 
+Comment = collections.namedtuple("Comment", ("srow", "scolumn", "content"))
+ 
 class Context():
     """Represents the context of the operation being serialized.
 
@@ -14,11 +17,20 @@ class Context():
     """
     def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", tab='\t'):
         self.comments = comments or []
+        self._comments_usage = [False] * len(self.comments)
         self.indent = indent
         self.inline = inline
         self.max_line_length = max_line_length
         self.quote = quote
         self.tab = tab
+
+    def get_all_comments(self):
+        """Gets all remaining comments"""
+        results = []
+        for i in range(len(self.comments)):
+            if self.comments[i] and not self._comments_usage[i]:
+                results.append(self.comments[i].content)
+        return "\n".join(results)
 
     def get_comments(self, lineno, col_offset):
         """Return a list of comments that match the provided line and col
@@ -33,9 +45,9 @@ class Context():
         while self.comments[start - 1]:
             start -= 1
         for i in range(start, lineno):
-            if self.comments[i]:
-                results.append(self.comments[i][2])
-                self.comments[i] = None
+            if self.comments[i] and not self._comments_usage[i]:
+                results.append(self.comments[i].content)
+                self._comments_usage[i] = True
         return results
 
     def override(self, **kwargs):
@@ -110,7 +122,9 @@ def _format_body(body, context):
     imports = imports + "\n\n" if imports else ""
     docstring = docstring + "\n" if docstring else ""
     constants = constants + "\n\n" if constants else ""
-    return (docstring + stdimports + imports + constants + content).rstrip()
+    trailing_comments = context.get_all_comments()
+    trailing_comments = "\n" + trailing_comments if trailing_comments else ""
+    return (docstring + stdimports + imports + constants + content + trailing_comments).rstrip()
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -409,16 +423,17 @@ FORMATTERS = {
 class ReadLine():
     def __init__(self, content):
         self.content = content
+        self.is_done = False
         self.index = 0
         logging.debug("Full content: '%s'", content)
 
     def __call__(self):
-        if self.index == -1:
+        if self.is_done:
             raise StopIteration
         try:
             next_index = self.content.index("\n", self.index + 1)
         except ValueError:
-            self.index = -1
+            self.is_done = True
             result = self.content[self.index+1:]
             return result.encode("utf-8")
         line = self.content[self.index:next_index]
@@ -427,14 +442,15 @@ class ReadLine():
 
 def _extract_comments(content):
     "Given content get all comments and their locations"
-    results = []
+    results = [None] * (content.count("\n") + 1)
     buf = ReadLine(content)
     for token_type, tok, begin, end, line in tokenize.tokenize(buf):
+        # For whatever reason python provides the full content
+        # as a
         if token_type == token.N_TOKENS:
-            if begin[0] >= len(results):
-                new_slots = begin[0] - len(results) + 1
-                results.extend([None] * new_slots)
-            results[begin[0]] = (begin[0], begin[1], tok)
+            logging.debug("Adding comment from %s to %s: '%s'", begin, end, tok)
+            comment = Comment(begin[0], begin[1], tok)
+            results[comment.srow] = comment
         else:
             logging.debug("Skip %s at %s", token.tok_name[token_type], begin)
     return results
@@ -448,4 +464,5 @@ def serialize(content, max_line_length=120, quote="\"", tab="\t"):
         max_line_length=max_line_length,
         quote=quote,
         tab=tab)
-    return _format_body(data.body, context) + "\n"
+    result = _format_body(data.body, context) + "\n"
+    return result

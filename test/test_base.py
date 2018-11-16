@@ -32,7 +32,7 @@ def _get_diff(output, expected):
     line = 0;
     char = 0;
     for i, c in enumerate(expected):
-        if c != output[i]:
+        if i >= len(output) or c != output[i]:
             break
         if c == "\n":
             line += 1
