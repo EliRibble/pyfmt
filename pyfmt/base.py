@@ -45,17 +45,29 @@ class Context():
                 results.append(self.comments[i].content)
         return results
 
-    def get_comments(self, lineno, col_offset):
-        """Return a list of comments that match the provided line and col
+    def get_inline_comment(self, lineno):
+        """Get comment in the provided line."""
+        empty_comment = Comment(None, None, "")
+        try:
+            if self._comments_usage[lineno]:
+                return empty_comment
+        except IndexError:
+            return empty_comment
+        result = self.comments[lineno]
+        self._comments_usage[lineno] = True
+        return result or empty_comment
+
+    def get_standalone_comments(self, lineno, col_offset) -> list:
+        """Get comments in lines before providedlines.
         
-        This will mutate self.comments to remove the comment that is returned.
-        This prevents comments from being written multiple times
+        This will mutate self._comments_usage to mark the comment as used.
+        This prevents comments from being written multiple times.
         """
         results = []
-        start = lineno - 1
+        start = max(0, lineno - 1)
         if start >= len(self.comments):
             return []
-        while self.comments[start - 1]:
+        while start > 0 and self.comments[start]:
             start -= 1
         for i in range(start, lineno):
             if self.comments[i] and not self._comments_usage[i]:
@@ -327,10 +339,16 @@ def _format_value(value, context):
     formatter = FORMATTERS.get(type(value))
     if formatter is None:
         raise Exception("Need to write a formatter for {}".format(type(value)))
-    comments = context.get_comments(value.lineno, value.col_offset) if hasattr(value, 'lineno') else []
-    comments = context.do_indent(comments, tail=True)
+    if hasattr(value, 'lineno'):
+        pre_comments = context.get_standalone_comments(value.lineno, value.col_offset)
+        pre_comments = context.do_indent(pre_comments, tail=True)
+        post_comment = context.get_inline_comment(value.lineno).content
+        post_comment = " " + post_comment if post_comment else ""
+    else:
+        pre_comments = ""
+        post_comment = ""
     result = formatter(value, context)
-    return comments + result
+    return pre_comments + result + post_comment
 
 def _joiner(section, context):
     """Join a section into well-formatte lines.
