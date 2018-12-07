@@ -39,11 +39,15 @@ def _get_diff(output, expected):
             char = 0
         char += 1
     return ("\n"
+            "--------- output repr:\n{outputrepr}\n"
+            "--------- expected repr:\n{expectedrepr}\n"
             "--------- output:\n{output}\n"
             "--------- expected:\n{expected}\n"
             "--------- Failure line {line} char {char}\n").format(
             char=char,
             expected=expected,
+            expectedrepr=repr(expected),
             line=line,
             output=output,
+            outputrepr=repr(output),
     )

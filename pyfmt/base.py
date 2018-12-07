@@ -25,25 +25,17 @@ class Context():
         self.quote = quote
         self.tab = tab
 
-    def do_indent(self, lines, tail=False):
+    def do_indent(self, lines) -> str:
         """Indent a list of lines
 
         Args:
             lines: a list of lines to indent and join
-            tail: if true, add a trailing newline and indent
+        Returns: The joined lines with indentation
         """
-        separator = ("\n" + ("\t" * self.indent))
-        if tail:
-            return separator.join(lines + [""])
-        return separator.join(lines)
-
-    def get_all_comments(self):
-        """Gets all remaining comments"""
-        results = []
-        for i in range(len(self.comments)):
-            if self.comments[i] and not self._comments_usage[i]:
-                results.append(self.comments[i].content)
-        return results
+        indented_lines = [
+            self.tab + line if line else ""
+            for line in lines]
+        return "\n".join(indented_lines)
 
     def get_inline_comment(self, lineno):
         """Get comment in the provided line."""
@@ -124,7 +116,7 @@ def _format_binop(value, context):
         right = _format_value(value.right, context),
     )
 
-def _format_body(body, context):
+def _format_body(body, context, do_indent=True):
     """Format a body like a function or module body.
 
     This breaks the body into large sections for the sake
@@ -134,21 +126,19 @@ def _format_body(body, context):
     doc, remainder = _split_docstring(body)
     stdimports, imports, remainder = _split_imports(remainder)
     constants, remainder = _split_constants(remainder)
+
     constants = _format_constants(constants, context)
     docstring = _format_docstring(doc, context)
     stdimports = _format_imports(stdimports, context)
     imports = _format_imports(imports, context)
+    content = _format_content(remainder, context)
+    for section in (constants, stdimports, imports):
+        if section:
+            section.append("")
 
-    content = _joiner(remainder, context)
-    trailing_comments = context.get_all_comments()
-    trailing_comments = context.do_indent(trailing_comments)
-
-    stdimports = stdimports + "\n\n" if stdimports else ""
-    imports = imports + "\n\n" if imports else ""
-    docstring = docstring + "\n" if docstring else ""
-    constants = constants + "\n\n" if constants else ""
-    trailing_comments = "\n" + trailing_comments if trailing_comments else ""
-    return (docstring + stdimports + imports + constants + content + trailing_comments).rstrip()
+    body = [l for section in (docstring, stdimports, imports, constants, content) for l in section]
+    return context.do_indent(body) if do_indent else "\n".join(body)
+   
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -187,6 +177,14 @@ def _format_call_vertical(value, context):
         kwargs=",\n\t".join(kwargs),
         func=_format_value(value.func, context))
 
+def _format_class(value, context):
+    with context.sub() as sub:
+        body = "\n".join([_format_value(b, sub) for b in value.body])
+    return "class {name}:\n{body}".format(
+        body=body,
+        name=value.name,
+    )
+
 def _format_compare(value, context):
     return "{left} {op} {right}".format(
         left=_format_value(value.left, context),
@@ -201,8 +199,32 @@ def _format_comprehension(value, context):
     )
 
 def _format_constants(constants, context):
-    lines = [(context.indent * context.tab) + _format_value(c, context) for c in constants]
-    return "\n".join(sorted(lines))
+    return sorted([_format_value(c, context) for c in constants])
+
+def _format_content(section, context) -> list:
+    """Convert a tree of content into a list of lines to be indented and joined."""
+    if not section:
+        return []
+
+    BLANKLINES = {
+        ast.FunctionDef: 1
+    }
+    lines = []
+    for node in section:
+        content = _format_value(node, context)
+        if hasattr(node, 'lineno'):
+            pre_comments = context.get_standalone_comments(node.lineno, node.col_offset)
+            lines += pre_comments
+            post_comment = context.get_inline_comment(node.lineno).content
+            post_comment = " " + post_comment if post_comment else ""
+        else:
+            post_comment = ""
+        content_lines = content.split("\n")
+        content_lines[0] = content_lines[0] + post_comment
+        lines += content_lines
+        blanks = BLANKLINES.get(type(node), 0)
+        lines += ([""] * blanks)
+    return lines
 
 def _format_dict(value, context):
     "Format a dictionary, choosing the best approach of several"
@@ -228,7 +250,7 @@ def _format_dict_short(pairs, context):
     parts = ["{}: {}".format(k, v) for k, v in pairs]
     return "{{{}}}".format(", ".join(parts))
 
-def _format_docstring(value, context):
+def _format_docstring(value, context) -> list:
     """Given a single expression known to be a docstring apply special formatting.
 
     Returns:
@@ -244,9 +266,8 @@ def _format_docstring(value, context):
         context = context.override(quote="\"\"\"")
         content = _format_expression(value, context)
     lines = content.split('\n')
-    docstring = [
-        (context.indent * context.tab) + line.strip() if line else "" for line in lines]
-    return "\n".join(docstring)
+    clean_lines = [line.strip() if line else "" for line in lines]
+    return clean_lines
 
 def _format_eq(value, context):
     return "=="
@@ -259,9 +280,9 @@ def _format_function_def(func, context):
     with context.sub() as sub:
         body = _format_body(func.body, context=context)
     return "def {name}({arguments}):\n{body}".format(
-        name=func.name,
         arguments=arguments,
         body=body,
+        name=func.name,
     )
 
 def _format_if(value, context):
@@ -279,9 +300,9 @@ def _format_import_from(imp, context):
         imp.module,
         ', '.join(sorted(n.name for n in imp.names)))
 
-def _format_imports(imports, context):
+def _format_imports(imports, context) -> list:
     lines = [_format_value(i, context) for i in imports]
-    return "\n".join(sorted(lines))
+    return sorted(lines)
 
 def _format_list(value, context):
     return "list"
@@ -339,38 +360,7 @@ def _format_value(value, context):
     formatter = FORMATTERS.get(type(value))
     if formatter is None:
         raise Exception("Need to write a formatter for {}".format(type(value)))
-    if hasattr(value, 'lineno'):
-        pre_comments = context.get_standalone_comments(value.lineno, value.col_offset)
-        pre_comments = context.do_indent(pre_comments, tail=True)
-        post_comment = context.get_inline_comment(value.lineno).content
-        post_comment = " " + post_comment if post_comment else ""
-    else:
-        pre_comments = ""
-        post_comment = ""
-    result = formatter(value, context)
-    return pre_comments + result + post_comment
-
-def _joiner(section, context):
-    """Join a section into well-formatte lines.
-
-    Take a section, which is a list of AST items to put together in a block which
-    is one giant, properly formatted strings.
-    """
-    if not section:
-        return ""
-    JOINERS = {
-        ast.FunctionDef: "\n\n",
-    }
-    lines = []
-    result = ""
-    joiner = ""
-    for node in section:
-        # only add the joiner if this is not the last iteration
-        result += joiner
-        joiner = JOINERS.get(type(node), "\n")
-        content = _format_value(node, context)
-        result = result + (context.tab * context.indent) + content
-    return result
+    return formatter(value, context)
 
 def _split_constants(remainder):
     "Given the remainder of a body return the constants and whatever else is left."
@@ -430,6 +420,7 @@ FORMATTERS = {
     ast.Attribute: _format_attribute,
     ast.BinOp: _format_binop,
     ast.Call: _format_call,
+    ast.ClassDef: _format_class,
     ast.Compare: _format_compare,
     ast.comprehension: _format_comprehension,
     ast.Dict: _format_dict,
@@ -497,5 +488,5 @@ def serialize(content, max_line_length=120, quote="\"", tab="\t"):
         max_line_length=max_line_length,
         quote=quote,
         tab=tab)
-    result = _format_body(data.body, context) + "\n"
+    result = _format_body(data.body, context, do_indent=False).strip() + "\n"
     return result
