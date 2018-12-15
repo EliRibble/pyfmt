@@ -8,7 +8,7 @@ import tokenize
 
 from pyfmt import constants
 
-Comment = collections.namedtuple("Comment", ("srow", "scolumn", "content"))
+Comment = collections.namedtuple("Comment", ("srow", "scolumn", "content", "dedent"))
  
 class Context():
     """Represents the context of the operation being serialized.
@@ -18,7 +18,7 @@ class Context():
     """
     def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", tab='\t'):
         self.comments = comments or []
-        self._comments_usage = [False] * len(self.comments)
+        self._comments_read_index = 0
         self.indent = indent
         self.inline = inline
         self.max_line_length = max_line_length
@@ -39,32 +39,26 @@ class Context():
 
     def get_inline_comment(self, lineno):
         """Get comment in the provided line."""
-        empty_comment = Comment(None, None, "")
-        try:
-            if self._comments_usage[lineno]:
-                return empty_comment
-        except IndexError:
+        empty_comment = Comment(None, None, "", False)
+        if lineno < self._comments_read_index:
             return empty_comment
         result = self.comments[lineno]
-        self._comments_usage[lineno] = True
+        self._comments_read_index += 1
         return result or empty_comment
 
-    def get_standalone_comments(self, lineno, col_offset) -> list:
+    def get_standalone_comments(self, lineno, col_offset, allow_dedent=True) -> list:
         """Get comments in lines before providedlines.
         
-        This will mutate self._comments_usage to mark the comment as used.
+        This will mutate self._comments_read_index to mark the comment as used.
         This prevents comments from being written multiple times.
         """
         results = []
-        start = max(0, lineno - 1)
-        if start >= len(self.comments):
-            return []
-        while start > 0 and self.comments[start]:
-            start -= 1
-        for i in range(start, lineno):
-            if self.comments[i] and not self._comments_usage[i]:
-                results.append(self.comments[i].content)
-                self._comments_usage[i] = True
+        while self._comments_read_index < len(self.comments) and self._comments_read_index < lineno:
+            comment = self.comments[self._comments_read_index]
+            if comment and comment.dedent and not allow_dedent:
+                break
+            results.append(comment)
+            self._comments_read_index += 1
         return results
 
     def override(self, **kwargs):
@@ -210,20 +204,29 @@ def _format_content(section, context) -> list:
         ast.FunctionDef: 1
     }
     lines = []
+    max_lineno = 0
     for node in section:
-        content = _format_value(node, context)
         if hasattr(node, 'lineno'):
             pre_comments = context.get_standalone_comments(node.lineno, node.col_offset)
-            lines += pre_comments
-            post_comment = context.get_inline_comment(node.lineno).content
-            post_comment = " " + post_comment if post_comment else ""
+            logging.debug("Found %d pre-comments for %s at %d", len(pre_comments), type(node), node.lineno)
+            lines += [comment.content for comment in pre_comments if comment]
+            inline_comment = context.get_inline_comment(node.lineno).content
+            inline_comment = " " + inline_comment if inline_comment else ""
+            max_lineno = max(max_lineno, node.lineno)
         else:
-            post_comment = ""
+            inline_comment = ""
+        content = _format_value(node, context)
         content_lines = content.split("\n")
-        content_lines[0] = content_lines[0] + post_comment
+        content_lines[0] = content_lines[0] + inline_comment
         lines += content_lines
         blanks = BLANKLINES.get(type(node), 0)
         lines += ([""] * blanks)
+    # We need to capture any comments that are at the end of this block of
+    # code. In order to do that we take whatever the highest line number
+    # is and we get the comments for an imaginary line of code that is
+    # beyond wherever the comment would be (+2).
+    final_comments = context.get_standalone_comments(max_lineno+2, 0, allow_dedent=False)
+    lines += [comment.content for comment in final_comments if comment]
     return lines
 
 def _format_dict(value, context):
@@ -469,14 +472,25 @@ def _extract_comments(content):
     results = [None] * (content.count("\n") + 1)
     buf = ReadLine(content)
     for token_type, tok, begin, end, line in tokenize.tokenize(buf):
-        # For whatever reason python provides the full content
-        # as a
         if token_type == token.N_TOKENS:
-            logging.debug("Adding comment from %s to %s: '%s'", begin, end, tok)
-            comment = Comment(begin[0], begin[1], tok)
+            logging.debug("Adding comment N_TOKENS from %s to %s: '%s'", begin, end, tok)
+            comment = Comment(begin[0], begin[1], tok, dedent=False)
+            results[comment.srow] = comment
+        # This logic handles comments that happen after a 
+        # block. For some reason the token type is not
+        # present in the token library (so we can't do
+        # token.<foo> in the comparison here. We also
+        # bump up the row index so that it is not treated
+        # as a trailing comment from the previous block
+        elif token_type == 58 and '#' in tok:
+            value = tok.strip()
+            logging.debug("Adding comment NL from %s to %s: '%s'", begin, end, value)
+            comment = Comment(begin[0], begin[1], value, dedent=True)
             results[comment.srow] = comment
         else:
-            logging.debug("Skip %s at %s", token.tok_name[token_type], begin)
+            if "#" in tok:
+                import pdb;pdb.set_trace()
+            logging.debug("Skip %s at %s to %s '%s'", token.tok_name[token_type], begin, end, tok)
     return results
 
 def serialize(content, max_line_length=120, quote="\"", tab="\t"):
