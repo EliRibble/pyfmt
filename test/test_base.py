@@ -14,7 +14,8 @@ OUTPUT_DIRECTORY = os.path.join(
 
 def test_generate_format_tests():
     for filename in os.listdir(INPUT_DIRECTORY):
-        yield test_format, filename
+        if not filename.startswith("."):
+            yield test_format, filename
 
 def test_format(filename):
     inputfile = os.path.join(INPUT_DIRECTORY, filename)
