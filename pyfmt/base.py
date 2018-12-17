@@ -172,10 +172,14 @@ def _format_call_vertical(value, context):
         func=_format_value(value.func, context))
 
 def _format_class(value, context):
+    pre_comments = context.get_standalone_comments(value.lineno, value.col_offset)
+    logging.debug("Found %d pre-comments for %s at %d", len(pre_comments), type(value), value.lineno)
     with context.sub() as sub:
-        body = "\n".join([_format_value(b, sub) for b in value.body])
-    return "class {name}:\n{body}".format(
+        body = _format_body(value.body, context)
+    return "{comments}\nclass {name}({bases}):\n{body}".format(
+        bases=", ".join(value.bases),
         body=body,
+        comments="\n".join(pre_comments),
         name=value.name,
     )
 
@@ -354,6 +358,10 @@ def _format_targets(targets):
         elif type(target) == ast.Tuple:
             for elt in target.elts:
                 result.append(elt.id)
+        elif type(target) == ast.Attribute:
+            result.append("{}.{}".format(target.value.id, target.attr))
+        else:
+            raise Exception("No idea how to format target: {}".format(target))
     return ", ".join(result)
 
 def _format_tuple(value, context):
