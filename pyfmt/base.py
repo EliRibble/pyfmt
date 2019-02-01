@@ -3,6 +3,7 @@ import collections
 import contextlib
 import functools
 import logging
+import io
 import token
 import tokenize
 
@@ -456,31 +457,11 @@ FORMATTERS = {
     ast.Tuple: _format_tuple,
 }
 
-class ReadLine():
-    def __init__(self, content):
-        self.content = content
-        self.is_done = False
-        self.index = 0
-        logging.debug("Full content: '%s'", content)
-
-    def __call__(self):
-        if self.is_done:
-            raise StopIteration
-        try:
-            next_index = self.content.index("\n", self.index + 1)
-        except ValueError:
-            self.is_done = True
-            result = self.content[self.index+1:]
-            return result.encode("utf-8")
-        line = self.content[self.index:next_index]
-        self.index = next_index + 1
-        return line.encode("utf-8")
-
 def _extract_comments(content):
     "Given content get all comments and their locations"
     results = [None] * (content.count("\n") + 1)
-    buf = ReadLine(content)
-    for token_type, tok, begin, end, line in tokenize.tokenize(buf):
+    buf = io.BytesIO(content.encode("utf-8")) # ReadLine(content)
+    for token_type, tok, begin, end, line in tokenize.tokenize(buf.__next__):
         if token_type == token.N_TOKENS:
             logging.debug("Adding comment N_TOKENS from %s to %s: '%s'", begin, end, tok)
             comment = Comment(begin[0], begin[1], tok, dedent=False)
@@ -493,13 +474,17 @@ def _extract_comments(content):
         # as a trailing comment from the previous block
         elif token_type == 58 and '#' in tok:
             value = tok.strip()
-            logging.debug("Adding comment NL from %s to %s: '%s'", begin, end, value)
+            logging.debug("Adding dedent comment NL from %s to %s: '%s'", begin, end, value)
             comment = Comment(begin[0], begin[1], value, dedent=True)
             results[comment.srow] = comment
         else:
             if "#" in tok:
                 import pdb;pdb.set_trace()
             logging.debug("Skip %s at %s to %s '%s'", token.tok_name[token_type], begin, end, tok)
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        logging.debug("Complete extracted comments:")
+        for i, comment in enumerate(results):
+            logging.debug("%d: %s", i, comment)
     return results
 
 def serialize(content, max_line_length=120, quote="\"", tab="\t"):
