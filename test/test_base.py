@@ -1,3 +1,4 @@
+import logging
 import os
 
 import pyfmt.base
@@ -13,7 +14,7 @@ OUTPUT_DIRECTORY = os.path.join(
 )
 
 def test_generate_format_tests():
-    for filename in os.listdir(INPUT_DIRECTORY):
+    for filename in sorted(os.listdir(INPUT_DIRECTORY)):
         if not filename.startswith("."):
             yield test_format, filename
 
@@ -22,9 +23,11 @@ def test_format(filename):
     outputfile = os.path.join(OUTPUT_DIRECTORY, filename)
     assert os.path.exists(inputfile), "test isn't sane, got a filename that isn't there"
     assert os.path.exists(outputfile), "missing output file for {}. It should be at {}".format(inputfile, outputfile)
+    logging.debug("Reading input from %s", inputfile)
     with open(inputfile, 'r') as f:
         content = f.read()
     output = pyfmt.base.serialize(content, max_line_length=80, quote="\"", tab="\t")
+    logging.debug("Reading output from %s", outputfile)
     with open(outputfile, 'r') as f:
         expected = f.read()
     assert output == expected, _get_diff(output, expected)
