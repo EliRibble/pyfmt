@@ -44,6 +44,8 @@ class Context():
         if lineno < self._comments_read_index:
             return empty_comment
         result = self.comments[lineno]
+        if result and result.dedent:
+            return empty_comment
         self._comments_read_index += 1
         return result or empty_comment
 
@@ -54,12 +56,17 @@ class Context():
         This prevents comments from being written multiple times.
         """
         results = []
+        start = self._comments_read_index
         while self._comments_read_index < len(self.comments) and self._comments_read_index < lineno:
             comment = self.comments[self._comments_read_index]
-            if comment and comment.dedent and not allow_dedent:
-                break
-            results.append(comment)
+            if comment:
+                if comment.dedent and not allow_dedent:
+                    logging.debug("Refusing to provide comment for line %d because the comment we have is a dedent comment", lineno)
+                    break
+                results.append(comment)
             self._comments_read_index += 1
+        if start != self._comments_read_index:
+            logging.debug("Advanced comments read index to %d", self._comments_read_index)
         return results
 
     def override(self, **kwargs):
@@ -131,7 +138,21 @@ def _format_body(body, context, do_indent=True):
         if section:
             section.append("")
 
+    # There may be comments in the body that were not extracted
+    # in _format_content because it was empty. Find any of those
+    # comments and add them to the body now
+    comments = []
+    for node in body[::-1]:
+        if hasattr(node, "lineno"):
+            # We need to capture any comments that are at the end of this block of
+            # code. In order to do that we take whatever the highest line number
+            # is and we get the comments for an imaginary line of code that is
+            # beyond wherever the comment would be (+2).
+            comments = context.get_standalone_comments(node.lineno+2, node.col_offset, allow_dedent=False)
+            break
+            
     body = [l for section in (docstring, stdimports, imports, constants, content) for l in section]
+    body += [comment.content for comment in comments]
     return context.do_indent(body) if do_indent else "\n".join(body)
    
 
@@ -173,14 +194,11 @@ def _format_call_vertical(value, context):
         func=_format_value(value.func, context))
 
 def _format_class(value, context):
-    pre_comments = context.get_standalone_comments(value.lineno, value.col_offset)
-    logging.debug("Found %d pre-comments for %s at %d", len(pre_comments), type(value), value.lineno)
     with context.sub() as sub:
         body = _format_body(value.body, context)
-    return "{comments}\nclass {name}({bases}):\n{body}".format(
-        bases=", ".join(value.bases),
+    return "class {name}({bases}):\n{body}".format(
+        bases=", ".join([b.id for b in value.bases]),
         body=body,
-        comments="\n".join(pre_comments),
         name=value.name,
     )
 
@@ -206,18 +224,17 @@ def _format_content(section, context) -> list:
         return []
 
     BLANKLINES = {
-        ast.FunctionDef: 1
+        ast.ClassDef: 1,
+        ast.FunctionDef: 1,
     }
     lines = []
-    max_lineno = 0
     for node in section:
         if hasattr(node, 'lineno'):
             pre_comments = context.get_standalone_comments(node.lineno, node.col_offset)
-            logging.debug("Found %d pre-comments for %s at %d", len(pre_comments), type(node), node.lineno)
-            lines += [comment.content for comment in pre_comments if comment]
+            logging.debug("Found %d pre-comments for %s content at %d", len(pre_comments), type(node), node.lineno)
+            lines += [comment.content for comment in pre_comments]
             inline_comment = context.get_inline_comment(node.lineno).content
             inline_comment = " " + inline_comment if inline_comment else ""
-            max_lineno = max(max_lineno, node.lineno)
         else:
             inline_comment = ""
         content = _format_value(node, context)
@@ -226,12 +243,6 @@ def _format_content(section, context) -> list:
         lines += content_lines
         blanks = BLANKLINES.get(type(node), 0)
         lines += ([""] * blanks)
-    # We need to capture any comments that are at the end of this block of
-    # code. In order to do that we take whatever the highest line number
-    # is and we get the comments for an imaginary line of code that is
-    # beyond wherever the comment would be (+2).
-    final_comments = context.get_standalone_comments(max_lineno+2, 0, allow_dedent=False)
-    lines += [comment.content for comment in final_comments if comment]
     return lines
 
 def _format_dict(value, context):
