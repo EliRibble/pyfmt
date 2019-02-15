@@ -391,6 +391,12 @@ def _format_targets(targets):
 def _format_tuple(value, context):
     return ", ".join([_format_value(elt, context) for elt in value.elts])
 
+def _format_unary_op(value, context):
+    return "{op}{operand}".format(
+        op=_format_value(value.op, context),
+        operand=_format_value(value.operand, context),
+    )
+
 def _format_value(value, context):
     formatter = FORMATTERS.get(type(value))
     if formatter is None:
@@ -472,6 +478,7 @@ FORMATTERS = {
     ast.Mult: _format_multiplication,
     ast.Name: _format_name,
     ast.NameConstant: _format_name_constant,
+    ast.Not: lambda x, y: "not ",
     ast.Num: _format_number,
     ast.Pass: lambda x, y: "pass",
     ast.Pow: lambda x, y: "**",
@@ -479,6 +486,7 @@ FORMATTERS = {
     str: lambda x, y: x,
     ast.Str: _format_string,
     ast.Tuple: _format_tuple,
+    ast.UnaryOp: _format_unary_op,
 }
 
 def _extract_comments(content):
