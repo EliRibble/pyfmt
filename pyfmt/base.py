@@ -121,6 +121,10 @@ def _format_binop(value, context):
         right = _format_value(value.right, context),
     )
 
+def _format_boolop(value, context):
+    parts = [_format_value(v, context) for v in value.values]
+    return " == ".join(parts)
+
 def _format_body(body, context, do_indent=True):
     """Format a body like a function or module body.
 
@@ -482,6 +486,7 @@ FORMATTERS = {
     ast.Assign: _format_assign,
     ast.Attribute: _format_attribute,
     ast.BinOp: _format_binop,
+    ast.BoolOp: _format_boolop,
     ast.Call: _format_call,
     ast.ClassDef: _format_class,
     ast.Compare: _format_compare,
