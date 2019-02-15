@@ -294,6 +294,14 @@ def _format_eq(value, context):
 def _format_expression(value, context):
     return _format_value(value.value, context)
 
+def _format_for(value, context):
+    assert value.orelse == []
+    return "for {target} in {iter}:\n{body}".format(
+        body=_format_body(value.body, context),
+        iter=_format_value(value.iter, context),
+        target=_format_value(value.target, context),
+    )
+
 def _format_function_def(func, context):
     arguments = _format_value(func.args, context)
     with context.sub() as sub:
@@ -449,6 +457,7 @@ FORMATTERS = {
     ast.Dict: _format_dict,
     ast.Eq: _format_eq,
     ast.Expr: _format_expression,
+    ast.For: _format_for,
     ast.FunctionDef: _format_function_def,
     ast.If: _format_if,
     ast.Import: _format_import,
