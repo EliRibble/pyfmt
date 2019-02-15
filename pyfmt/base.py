@@ -505,6 +505,7 @@ FORMATTERS = {
     ast.Assert: _format_assert,
     ast.Assign: _format_assign,
     ast.Attribute: _format_attribute,
+    ast.AugAssign: lambda x, y: "+=",
     ast.BinOp: _format_binop,
     ast.Break: lambda x, y: "break",
     ast.BoolOp: _format_boolop,
