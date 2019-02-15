@@ -114,6 +114,12 @@ def _format_attribute(value, context):
         attr = _format_value(value.attr, context),
     )
 
+def _format_aug_assign(value, context):
+    return "{left} += {right}".format(
+        left = _format_value(value.target, context),
+        right = _format_value(value.value, context),
+    )
+
 def _format_binop(value, context):
     return "{left} {op} {right}".format(
         left  = _format_value(value.left, context),
@@ -505,7 +511,7 @@ FORMATTERS = {
     ast.Assert: _format_assert,
     ast.Assign: _format_assign,
     ast.Attribute: _format_attribute,
-    ast.AugAssign: lambda x, y: "+=",
+    ast.AugAssign: _format_aug_assign,
     ast.BinOp: _format_binop,
     ast.Break: lambda x, y: "break",
     ast.BoolOp: _format_boolop,
