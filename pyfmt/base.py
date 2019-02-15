@@ -210,10 +210,18 @@ def _format_class(value, context):
     )
 
 def _format_compare(value, context):
-    return "{left} {op} {right}".format(
+    comparisons = [
+        "{} {}".format(
+            _format_value(op, context),
+            _format_value(comparator, context),
+        ) for op, comparator in zip(
+            value.ops,
+            value.comparators,
+        )
+    ]
+    return "{left} {comparisons}".format(
         left=_format_value(value.left, context),
-        op=_format_value(value.ops[0], context),
-        right=_format_value(value.comparators[0], context),
+        comparisons=" ".join(comparisons),
     )
 
 def _format_comprehension(value, context):
