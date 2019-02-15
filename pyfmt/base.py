@@ -295,10 +295,14 @@ def _format_expression(value, context):
     return _format_value(value.value, context)
 
 def _format_for(value, context):
-    assert value.orelse == []
-    return "for {target} in {iter}:\n{body}".format(
+    else_ = ""
+    if value.orelse:
+        elsebody = _format_body(value.orelse, context)
+        else_ = "\nelse:\n{}".format(elsebody)
+    return "for {target} in {iter_}:\n{body}{else_}".format(
         body=_format_body(value.body, context),
-        iter=_format_value(value.iter, context),
+        else_=else_,
+        iter_=_format_value(value.iter, context),
         target=_format_value(value.target, context),
     )
 
