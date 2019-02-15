@@ -97,6 +97,9 @@ def _format_arguments(value, context):
     possible = ", ".join(parts)
     return possible
 
+def _format_assert(value, context):
+    return "assert {}".format(_format_value(value.test, context))
+
 def _format_assign(value, context):
     targets = _format_targets(value.targets)
     value = _format_value(value.value, context)
@@ -460,6 +463,7 @@ FORMATTERS = {
     ast.Add: lambda x, y: "+",
     ast.arg: lambda x, y: x.arg,
     ast.arguments: _format_arguments,
+    ast.Assert: _format_assert,
     ast.Assign: _format_assign,
     ast.Attribute: _format_attribute,
     ast.BinOp: _format_binop,
