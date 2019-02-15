@@ -350,8 +350,14 @@ def _format_imports(imports, context) -> list:
     lines = [_format_value(i, context) for i in imports]
     return sorted(lines)
 
+def _format_index(value, context):
+    return _format_value(value.value, context)
+
 def _format_list(value, context):
-    return "list"
+    elts = [
+        _format_value(e, context) for e in value.elts
+    ]
+    return "[{}]".format(", ".join(elts))
 
 def _format_list_comprehension(comp, context):
     assert len(comp.generators) == 1
@@ -402,6 +408,12 @@ def _format_targets(targets):
         else:
             raise Exception("No idea how to format target: {}".format(target))
     return ", ".join(result)
+
+def _format_subscript(value, context):
+    return "{value}[{slice_}]".format(
+        value=_format_value(value.value, context),
+        slice_=_format_value(value.slice, context),
+    )
 
 def _format_tuple(value, context):
     return ", ".join([_format_value(elt, context) for elt in value.elts])
@@ -508,6 +520,7 @@ FORMATTERS = {
     ast.If: _format_if,
     ast.Import: _format_import,
     ast.ImportFrom: _format_import_from,
+    ast.Index: _format_index,
     ast.List: _format_list,
     ast.ListComp: _format_list_comprehension,
     ast.keyword: _format_keyword,
@@ -522,6 +535,7 @@ FORMATTERS = {
     ast.Return: _format_return,
     str: lambda x, y: x,
     ast.Str: _format_string,
+    ast.Subscript: _format_subscript,
     ast.Tuple: _format_tuple,
     ast.UnaryOp: _format_unary_op,
     ast.With: _format_with,
