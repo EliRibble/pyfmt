@@ -403,6 +403,9 @@ def _format_value(value, context):
         raise Exception("Need to write a formatter for {}".format(type(value)))
     return formatter(value, context)
 
+def _format_yield(value, context):
+    return "yield {}".format(_format_value(value.value, context))
+
 def _split_constants(remainder):
     "Given the remainder of a body return the constants and whatever else is left."
     constants = []
@@ -487,6 +490,7 @@ FORMATTERS = {
     ast.Str: _format_string,
     ast.Tuple: _format_tuple,
     ast.UnaryOp: _format_unary_op,
+    ast.Yield: _format_yield,
 }
 
 def _extract_comments(content):
