@@ -134,7 +134,8 @@ def _format_binop(value, context):
 
 def _format_boolop(value, context):
     parts = [_format_value(v, context) for v in value.values]
-    return " == ".join(parts)
+    op_part = _format_value(value.op, context)
+    return " {} ".format(op_part).join(parts)
 
 def _format_body(body, context, do_indent=True):
     """Format a body like a function or module body.
@@ -541,6 +542,7 @@ def _split_imports(body):
 
 FORMATTERS = {
     ast.Add: lambda x, y: "+",
+    ast.And: lambda x, y: "and",
     ast.arg: lambda x, y: x.arg,
     ast.arguments: _format_arguments,
     ast.Assert: _format_assert,
@@ -574,6 +576,7 @@ FORMATTERS = {
     ast.Not: lambda x, y: "not ",
     ast.NotEq: lambda x, y: "!=",
     ast.Num: _format_number,
+    ast.Or: lambda x, y: "or",
     ast.Pass: lambda x, y: "pass",
     ast.Pow: lambda x, y: "**",
     ast.Return: _format_return,
