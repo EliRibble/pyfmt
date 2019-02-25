@@ -98,6 +98,11 @@ def _format_arguments(value, context):
     return possible
 
 def _format_assert(value, context):
+    if value.msg:
+        return "assert {test}, {msg}".format(
+            msg=_format_value(value.msg, context),
+            test=_format_value(value.test, context),
+        )
     return "assert {}".format(_format_value(value.test, context))
 
 def _format_assign(value, context):
@@ -468,7 +473,7 @@ def _split_constants(remainder):
             break;
         if not isinstance(node.targets[0], ast.Name):
             break;
-        if type(node.value) not in (ast.NameConstant, ast.Str):
+        if type(node.value) not in (ast.NameConstant, ast.Str, ast.Num):
             break;
         constants.append(remainder.pop(0))
     logging.debug("Found %d constant lines", len(constants))
@@ -483,7 +488,11 @@ def _split_declarations(remainder):
             break;
         if not isinstance(node.targets[0], ast.Name):
             break;
-        if type(node.value) not in (ast.NameConstant, ast.Str, ast.Call):
+        if type(node.value) not in (
+            ast.Call,
+            ast.NameConstant,
+            ast.Num,
+            ast.Str):
             break;
         declarations.append(remainder.pop(0))
     logging.debug("Found %d declaration lines", len(declarations))
