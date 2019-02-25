@@ -407,9 +407,15 @@ def _format_return(value, context):
     return "return {}".format(_format_value(value.value, context))
 
 def _format_string(value, context):
+    REPLACEMENTS = {
+        context.quote: "\\" + context.quote,
+        "\n": "\\n",
+        "\t": "\\t",
+    }
     return "{quote}{string}{quote}".format(
         quote=context.quote,
-        string=value.s)
+        string=REPLACEMENTS.get(value.s, value.s),
+    )
 
 def _format_targets(targets):
     result = []

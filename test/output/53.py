@@ -1,0 +1,5 @@
+A_COMMA = ","
+A_QUOTE = "'"
+A_TAB = "\t"
+DOUBLE_QUOTES = "\""
+NEWLINE = "\n"
