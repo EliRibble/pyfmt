@@ -21,3 +21,10 @@ Because Google requires double quotes for docstrings and I prefer to have quotes
 # Hacking
 
 Create a virtualenv. `pip install -e .` at the root of the repository. `nose2` to run tests.
+
+You can run a specific test with high debugging with:
+
+```
+cd test
+nose2 -F -D test_base.test_generate_format_tests:55 --log-level DEBUG
+```
