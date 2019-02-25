@@ -141,13 +141,15 @@ def _format_body(body, context, do_indent=True):
     doc, remainder = _split_docstring(body)
     stdimports, imports, remainder = _split_imports(remainder)
     constants, remainder = _split_constants(remainder)
+    declarations, remainder = _split_declarations(remainder)
 
     constants = _format_constants(constants, context)
+    declarations = _format_declarations(declarations, context)
     docstring = _format_docstring(doc, context)
     stdimports = _format_imports(stdimports, context)
     imports = _format_imports(imports, context)
     content = _format_content(remainder, context)
-    for section in (constants, stdimports, imports):
+    for section in (constants, declarations, stdimports, imports):
         if section:
             section.append("")
 
@@ -164,7 +166,7 @@ def _format_body(body, context, do_indent=True):
             comments = context.get_standalone_comments(node.lineno+2, node.col_offset, allow_dedent=False)
             break
             
-    body = [l for section in (docstring, stdimports, imports, constants, content) for l in section]
+    body = [l for section in (docstring, stdimports, imports, constants, declarations, content) for l in section]
     body += [comment.content for comment in comments]
     return context.do_indent(body) if do_indent else "\n".join(body)
    
@@ -265,6 +267,9 @@ def _format_content(section, context) -> list:
         blanks = BLANKLINES.get(type(node), 0)
         lines += ([""] * blanks)
     return lines
+
+def _format_declarations(declarations, context):
+    return [_format_value(d, context) for d in declarations]
 
 def _format_dict(value, context):
     "Format a dictionary, choosing the best approach of several"
@@ -463,11 +468,26 @@ def _split_constants(remainder):
             break;
         if not isinstance(node.targets[0], ast.Name):
             break;
-        if type(node.value) not in (ast.NameConstant, ast.Str,):
+        if type(node.value) not in (ast.NameConstant, ast.Str):
             break;
-        constants.append(remainder[0])
-        remainder = remainder[1:]
+        constants.append(remainder.pop(0))
+    logging.debug("Found %d constant lines", len(constants))
     return constants, remainder
+
+def _split_declarations(remainder):
+    "Given the remainder of a body return the declarations and whatever else is left."
+    declarations = []
+    while remainder and isinstance(remainder[0], ast.Assign):
+        node = remainder[0]
+        if len(node.targets) > 1:
+            break;
+        if not isinstance(node.targets[0], ast.Name):
+            break;
+        if type(node.value) not in (ast.NameConstant, ast.Str, ast.Call):
+            break;
+        declarations.append(remainder.pop(0))
+    logging.debug("Found %d declaration lines", len(declarations))
+    return declarations, remainder
 
 def _split_docstring(remainder):
     """Given the non-import sections of a body, return the docstring and remainder."""
