@@ -49,9 +49,15 @@ def _get_diff(output, expected):
             "--------- expected:\n{expected}\n"
             "--------- Failure line {line} char {char}\n").format(
             char=char,
-            expected=expected,
+            expected=_lined(expected),
             expectedrepr=repr(expected),
             line=line,
-            output=output,
+            output=_lined(output),
             outputrepr=repr(output),
     )
+
+def _lined(output):
+    "Add line numbers to a block of output"
+    lines = output.split("\n")
+    lines = ["{}: {}".format(i, l) for i, l in enumerate(lines)]
+    return "\n".join(lines)
