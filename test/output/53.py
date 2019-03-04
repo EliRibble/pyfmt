@@ -1,3 +1,5 @@
+AN_ESCAPED_NEWLINE = "\n"
+AN_ESCAPED_TAB = "\t"
 A_COMMA = ","
 A_QUOTE = "'"
 A_TAB = "\t"

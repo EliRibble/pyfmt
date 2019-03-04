@@ -232,11 +232,12 @@ def _format_docstring(value, context) -> list:
     # formatting.
     if not value:
         return []
-    content = _format_expression(value, context)
-    if "\n" in content:
-        context = context.override(quote="\"\"\"")
-        content = _format_expression(value, context)
-    lines = content.split('\n')
+    subvalue = value.value
+    if "\n" in subvalue.s:
+        content = (context.quote * 3) + subvalue.s + (context.quote * 3)
+        lines = content.split("\n")
+    else:
+        lines = [context.quote + subvalue.s + context.quote]
     clean_lines = [line.strip() if line else "" for line in lines]
     return clean_lines
 
