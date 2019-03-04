@@ -30,6 +30,8 @@ def test_format(filename):
     logging.debug("Reading output from %s", outputfile)
     with open(outputfile, 'r') as f:
         expected = f.read()
+    for line in output.split("\n"):
+        assert len(line) <= 80, "{} is {} characters".format(line, len(line))
     assert output == expected, _get_diff(output, expected)
 
 def _get_diff(output, expected):
