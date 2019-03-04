@@ -100,7 +100,9 @@ def _format_body(body, context, do_indent=True):
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
     result = _format_call_horizontal(value, context)
-    if len(result) < context.max_line_length:
+    last_newline = result.rfind("\n")
+    last_line = result[last_newline:] if last_newline > 0 else result
+    if len(last_line) < context.max_line_length:
         return result
     return _format_call_vertical(value, context)
 

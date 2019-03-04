@@ -40,24 +40,25 @@ def _make_string_line(line: typing.Iterable[typing.Text], context:types.Context)
 
 def _format_spaces(value: typing.Text, context: types.Context):
     "The string is long, try to break it on spaces."
+    value = value.replace("\n", r"\n ")
     words = value.split(" ")
     results = []
     line = []
     while words:
-        possible_line = line + [words.pop(0)]
+        word = words.pop(0)
+        possible_line = line + [word]
         test_line = _make_string_line(possible_line, context)
         if len(test_line) < context.max_line_length:
             line = possible_line
         else:
             results.append(_make_string_line(line, context.override(indent=0)))
-            words.insert(0, possible_line[-1])
+            words.insert(0, word)
             line = []
     if line:
         results.append(_make_string_line(line, context.override(indent=0)))
+    results = [r.replace(r"\n ", r"\n") for r in results]
     content = "\n".join(results)
-    for result_line in results:
-        assert len(result_line) < context.max_line_length, "{} is too large by {}".format(len(result_line), len(result_line) - context.max_line_length)
-    return "(\n" + content + ")"
+    return "(\n" + content + "\n)"
     return "{quote}{result}{quote}".format(
         quote=context.quote,
         result=result,
