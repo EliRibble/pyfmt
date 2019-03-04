@@ -19,9 +19,15 @@ def _format_arguments(value, context):
 
 def _format_assert(value, context):
     if value.msg:
-        return "assert {test}, {msg}".format(
-            msg=_format_value(value.msg, context),
+        assert_ = "assert {test}, ".format(
             test=_format_value(value.test, context),
+        )
+        msg = _format_value(value.msg, context)
+        if len(assert_ + msg) > context.max_line_length:
+            msg = "(\n\t" + msg + "\n)"
+        return "{assert_}{msg}".format(
+            assert_=assert_,
+            msg=msg,
         )
     return "assert {}".format(_format_value(value.test, context))
 
