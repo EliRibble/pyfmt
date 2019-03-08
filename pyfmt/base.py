@@ -22,9 +22,7 @@ def _format_assert(value, context):
         assert_ = "assert {test}, ".format(
             test=_format_value(value.test, context),
         )
-        msg = _format_value(value.msg, context)
-        if len(assert_ + msg) > context.max_line_length:
-            msg = "(\n\t" + msg + "\n)"
+        msg = _format_value(value.msg, context.reserve(len(assert_)))
         return "{assert_}{msg}".format(
             assert_=assert_,
             msg=msg,
@@ -33,7 +31,7 @@ def _format_assert(value, context):
 
 def _format_assign(value, context):
     targets = _format_targets(value.targets)
-    value = _format_value(value.value, context)
+    value = _format_value(value.value, context.reserve(len(targets) + 3))
     return "{targets} = {value}".format(
         targets=targets,
         value=value,
@@ -108,7 +106,7 @@ def _format_call(value, context):
     result = _format_call_horizontal(value, context)
     last_newline = result.rfind("\n")
     last_line = result[last_newline:] if last_newline > 0 else result
-    if len(last_line) < context.max_line_length:
+    if len(last_line) < context.remaining_line_length:
         return result
     return _format_call_vertical(value, context)
 
