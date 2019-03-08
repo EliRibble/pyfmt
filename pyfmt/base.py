@@ -10,9 +10,18 @@ from pyfmt import constants, strings, types
 def _format_arguments(value, context):
     """Format an argument like 'x, y = z'"""
     parts = []
-    for arg in value.args:
-        parts.append(_format_value(arg, context))
+    no_defaults = len(value.args) - len(value.defaults)
+    for i, arg in enumerate(value.args):
+        if i >= no_defaults:
+            default = value.defaults[i]
+            parts.append("{arg}={default}".format(
+                arg = arg.arg,
+                default = default.value,
+            ))
+        else:
+            parts.append(arg.arg)
     for kwarg in value.kwonlyargs:
+        import pdb;pdb.set_trace()
         parts.append(_format_value(kwarg, context, pad_key=max_kwarg_key_len))
     possible = ", ".join(parts)
     return possible
@@ -129,7 +138,7 @@ def _format_call_vertical(value, context):
     ]
     max_kwarg_key_len = max(len(k.arg) for k in value.keywords) if value.keywords else 0
     kwargs = [
-        _format_keyword(k, context, pad_key=max_kwarg_key_len) for k in value.keywords
+        _format_keyword(k, context, pad_key=max_kwarg_key_len) for k in sorted(value.keywords, key=lambda keyword: keyword.arg)
     ]
     if args:
         return "{func}({arguments})".format(
@@ -459,7 +468,7 @@ def _split_imports(body):
 FORMATTERS = {
     ast.Add: lambda x, y: "+",
     ast.And: lambda x, y: "and",
-    ast.arg: lambda x, y: x.arg,
+    # ast.arg: lambda x, y: x.arg,
     ast.arguments: _format_arguments,
     ast.Assert: _format_assert,
     ast.Assign: _format_assign,
