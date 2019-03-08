@@ -20,9 +20,15 @@ def _format_arguments(value, context):
             ))
         else:
             parts.append(arg.arg)
-    for kwarg in value.kwonlyargs:
-        import pdb;pdb.set_trace()
-        parts.append(_format_value(kwarg, context, pad_key=max_kwarg_key_len))
+    if value.vararg:
+        parts.append("*" + value.vararg.arg)
+    assert len(value.kwonlyargs) == len(value.kw_defaults)
+    for i, kwarg in enumerate(value.kwonlyargs):
+        parts.append("{kwarg}={default}".format(
+            kwarg=kwarg.arg,
+            default=value.kw_defaults[i].value))
+    if value.kwarg:
+        parts.append("**" + value.kwarg.arg)
     possible = ", ".join(parts)
     return possible
 
@@ -343,6 +349,9 @@ def _format_number(value, context):
 def _format_return(value, context):
     return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
+def _format_starred(value, context):
+    return "*" + value.value.id
+
 def _format_targets(targets):
     result = []
     for target in targets:
@@ -506,6 +515,7 @@ FORMATTERS = {
     ast.Pow: lambda x, y: "**",
     ast.Return: _format_return,
     str: lambda x, y: x,
+    ast.Starred: _format_starred,
     ast.Str: strings.format_string,
     ast.Subscript: _format_subscript,
     ast.Tuple: _format_tuple,
