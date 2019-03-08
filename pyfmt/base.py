@@ -332,7 +332,7 @@ def _format_number(value, context):
     return str(value.n)
 
 def _format_return(value, context):
-    return "return {}".format(_format_value(value.value, context))
+    return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
 def _format_targets(targets):
     result = []
