@@ -55,6 +55,24 @@ When the second has better interaction with source control systems by not showin
 
 Because the first option conserves vertical whitespace.
 
+## No parens in for loop target
+
+We do
+
+```
+for a, b in foo:
+	...
+```
+
+instead of
+
+```
+for (a, b) in foo:
+	...
+```
+
+I'm going to claim it's because it removes characters without hurting readability, but honestly it's just because it's what I am used to and I had to make a judgement call.
+
 # Hacking
 
 Create a virtualenv. `pip install -e .` at the root of the repository. `nose2` to run tests.
