@@ -61,7 +61,8 @@ def _format_spaces(value: typing.Text, context: types.Context):
             # Whatever is left that is not a newline needs to
             # be added back to our stack for processing.
             remainder = word[newlines_end:]
-            words.insert(0, remainder)
+            if remainder:
+                words.insert(0, remainder)
             word = word[:newlines_end]
             word = word.replace("\n", r"\n")
             results.append(_make_string_line(line + [word], context.override(indent=0)))
