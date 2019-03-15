@@ -265,6 +265,13 @@ def _format_docstring(value, context) -> list:
 def _format_eq(value, context):
     return "=="
 
+def _format_except_handler(value, context):
+    body = _format_body(value.body, context)
+    return "except {type_}:\n{body}".format(
+        body  = body,
+        type_ = _format_value(value.type, context.reserve(len("except ")))
+    )
+
 def _format_expression(value, context):
     return _format_value(value.value, context)
 
@@ -346,6 +353,10 @@ def _format_name_constant(value, context):
 def _format_number(value, context):
     return str(value.n)
 
+def _format_raise(value, context):
+    assert value.cause is None
+    return "raise {}".format(_format_value(value.exc, context.reserve(len("raise "))))
+
 def _format_return(value, context):
     return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
@@ -370,6 +381,23 @@ def _format_subscript(value, context):
     return "{value}[{slice_}]".format(
         value=_format_value(value.value, context),
         slice_=_format_value(value.slice, context),
+    )
+
+def _format_try(value, context):
+    else_ = ""
+    if value.orelse:
+        elsebody = _format_body(value.orelse, context)
+        else_ = "\nelse:\n{}".format(elsebody)
+    finally_ = ""
+    if value.finalbody:
+        finalbody = _format_body(value.finalbody, context)
+        finally_ = "\nfinally:\n{}".format(finalbody)
+    handlers = [_format_except_handler(handler, context) for handler in value.handlers]
+    return "try:\n{body}\n{handlers}{else_}{finally_}".format(
+        body=_format_body(value.body, context),
+        else_=else_,
+        finally_=finally_,
+        handlers="\n".join(handlers),
     )
 
 def _format_tuple(value, context):
@@ -513,11 +541,14 @@ FORMATTERS = {
     ast.Or: lambda x, y: "or",
     ast.Pass: lambda x, y: "pass",
     ast.Pow: lambda x, y: "**",
+    ast.Raise: _format_raise,
     ast.Return: _format_return,
     str: lambda x, y: x,
     ast.Starred: _format_starred,
     ast.Str: strings.format_string,
+    ast.Sub: lambda x, y: "-",
     ast.Subscript: _format_subscript,
+    ast.Try: _format_try,
     ast.Tuple: _format_tuple,
     ast.UnaryOp: _format_unary_op,
     ast.With: _format_with,
