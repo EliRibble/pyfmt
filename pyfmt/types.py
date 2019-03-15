@@ -10,7 +10,7 @@ class Context():
     This class is used heavily in making decisions about the application
     of whitespace.
     """
-    def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", reserved_space=0, tab='\t'):
+    def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", reserved_space=0, suppress_tuple_parens=False, tab='\t'):
         self.comments = comments or []
         self._comments_read_index = 0
         self.indent = indent
@@ -18,6 +18,7 @@ class Context():
         self.max_line_length = max_line_length
         self.quote = quote
         self.reserved_space = reserved_space
+        self.suppress_tuple_parens = suppress_tuple_parens
         self.tab = tab
 
     def do_indent(self, lines) -> str:
@@ -70,7 +71,7 @@ class Context():
         B that is identical to A but has a different quote delimitre you would
         use A.override(quote="foo")
         """
-        VALID_PARAMS = ("indent", "inline", "max_line_length", "quote", "reserved_space", "tab")
+        VALID_PARAMS = ("indent", "inline", "max_line_length", "quote", "reserved_space", "suppress_tuple_parens", "tab")
         assert all(k in VALID_PARAMS for k in kwargs.keys())
         params = {k: kwargs.get(k, getattr(self, k)) for k in VALID_PARAMS}
         return Context(**params)

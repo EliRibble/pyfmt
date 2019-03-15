@@ -267,10 +267,11 @@ def _format_eq(value, context):
 
 def _format_except_handler(value, context):
     body = _format_body(value.body, context)
+    type_ = _format_value(value.type, context.reserve(len("except ")))
     return "except {type_}{name}:\n{body}".format(
         body  = body,
         name  = (" as " + value.name) if value.name else "",
-        type_ = _format_value(value.type, context.reserve(len("except ")))
+        type_ = type_,
     )
 
 def _format_expression(value, context):
@@ -285,7 +286,7 @@ def _format_for(value, context):
         body=_format_body(value.body, context),
         else_=else_,
         iter_=_format_value(value.iter, context),
-        target=_format_value(value.target, context),
+        target=_format_value(value.target, context.override(suppress_tuple_parens=True)),
     )
 
 def _format_function_def(func, context):
@@ -402,7 +403,11 @@ def _format_try(value, context):
     )
 
 def _format_tuple(value, context):
-    return ", ".join([_format_value(elt, context) for elt in value.elts])
+    content = [_format_value(elt, context) for elt in value.elts]
+    content = ", ".join(content)
+    if context.suppress_tuple_parens:
+        return content
+    return "({})".format(content)
 
 def _format_unary_op(value, context):
     return "{op}{operand}".format(
