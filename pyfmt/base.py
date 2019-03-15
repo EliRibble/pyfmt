@@ -267,8 +267,9 @@ def _format_eq(value, context):
 
 def _format_except_handler(value, context):
     body = _format_body(value.body, context)
-    return "except {type_}:\n{body}".format(
+    return "except {type_}{name}:\n{body}".format(
         body  = body,
+        name  = (" as " + value.name) if value.name else "",
         type_ = _format_value(value.type, context.reserve(len("except ")))
     )
 
