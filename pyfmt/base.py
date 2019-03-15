@@ -577,8 +577,6 @@ def _extract_comments(content):
             comment = types.Comment(begin[0], begin[1], value, dedent=True)
             results[comment.srow] = comment
         else:
-            if "#" in tok:
-                import pdb;pdb.set_trace()
             logging.debug("Skip %s at %s to %s '%s'", token.tok_name[token_type], begin, end, tok)
     if logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.debug("Complete extracted comments:")
