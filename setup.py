@@ -9,9 +9,11 @@ setup(
     extras_require = {
         "develop" : [
             "nose2"
-        ]
+        ],
     },
-    install_requires = [],
+    install_requires = [
+        "typed-ast",
+    ],
     scripts = ['bin/pyfmt'],
     packages = ['pyfmt'],
     package_data = {

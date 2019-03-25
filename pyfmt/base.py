@@ -1,11 +1,20 @@
-import ast
 import functools
 import logging
 import io
 import token
 import tokenize
 
+from typed_ast import ast3
 from pyfmt import constants, strings, types
+
+def _format_arg(value, context):
+    if not value.annotation:
+        return str(value.arg)
+    return "{arg}: {annotation}".format(
+        annotation = _format_value(value.annotation, context.reserve(len(value.arg) + 2)),
+        arg = value.arg,
+    )
+
 
 def _format_arguments(value, context):
     """Format an argument like 'x, y = z'"""
@@ -15,11 +24,11 @@ def _format_arguments(value, context):
         if i >= no_defaults:
             default = value.defaults[i-no_defaults]
             parts.append("{arg}={default}".format(
-                arg = arg.arg,
+                arg = _format_value(arg, context),
                 default = default.value,
             ))
         else:
-            parts.append(arg.arg)
+            parts.append(_format_value(arg, context))
     if value.vararg:
         parts.append("*" + value.vararg.arg)
     assert len(value.kwonlyargs) == len(value.kw_defaults)
@@ -55,7 +64,7 @@ def _format_assign(value, context):
 def _format_attribute(value, context):
     return "{value}.{attr}".format(
         value = _format_value(value.value, context),
-        attr = _format_value(value.attr, context),
+        attr = value.attr,
     )
 
 def _format_aug_assign(value, context):
@@ -194,8 +203,8 @@ def _format_content(section, context) -> list:
         return []
 
     BLANKLINES = {
-        ast.ClassDef: 1,
-        ast.FunctionDef: 1,
+        ast3.ClassDef: 1,
+        ast3.FunctionDef: 1,
     }
     lines = []
     for node in section:
@@ -362,18 +371,22 @@ def _format_raise(value, context):
 def _format_return(value, context):
     return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
+def _format_slice(value, context):
+    import pdb;pdb.set_trace()
+    return ""
+
 def _format_starred(value, context):
     return "*" + value.value.id
 
 def _format_targets(targets):
     result = []
     for target in targets:
-        if type(target) == ast.Name:
+        if type(target) == ast3.Name:
             result.append(target.id)
-        elif type(target) == ast.Tuple:
+        elif type(target) == ast3.Tuple:
             for elt in target.elts:
                 result.append(elt.id)
-        elif type(target) == ast.Attribute:
+        elif type(target) == ast3.Attribute:
             result.append("{}.{}".format(target.value.id, target.attr))
         else:
             raise Exception("No idea how to format target: {}".format(target))
@@ -442,13 +455,13 @@ def _format_withitem(value, context):
 def _split_constants(remainder):
     "Given the remainder of a body return the constants and whatever else is left."
     constants = []
-    while remainder and isinstance(remainder[0], ast.Assign):
+    while remainder and isinstance(remainder[0], ast3.Assign):
         node = remainder[0]
         if len(node.targets) > 1:
             break;
-        if not isinstance(node.targets[0], ast.Name):
+        if not isinstance(node.targets[0], ast3.Name):
             break;
-        if type(node.value) not in (ast.NameConstant, ast.Str, ast.Num):
+        if type(node.value) not in (ast3.NameConstant, ast3.Str, ast3.Num):
             break;
         constants.append(remainder.pop(0))
     logging.debug("Found %d constant lines", len(constants))
@@ -457,17 +470,17 @@ def _split_constants(remainder):
 def _split_declarations(remainder):
     "Given the remainder of a body return the declarations and whatever else is left."
     declarations = []
-    while remainder and isinstance(remainder[0], ast.Assign):
+    while remainder and isinstance(remainder[0], ast3.Assign):
         node = remainder[0]
         if len(node.targets) > 1:
             break;
-        if not isinstance(node.targets[0], ast.Name):
+        if not isinstance(node.targets[0], ast3.Name):
             break;
         if type(node.value) not in (
-            ast.Call,
-            ast.NameConstant,
-            ast.Num,
-            ast.Str):
+            ast3.Call,
+            ast3.NameConstant,
+            ast3.Num,
+            ast3.Str):
             break;
         declarations.append(remainder.pop(0))
     logging.debug("Found %d declaration lines", len(declarations))
@@ -475,7 +488,7 @@ def _split_declarations(remainder):
 
 def _split_docstring(remainder):
     """Given the non-import sections of a body, return the docstring and remainder."""
-    if not (remainder and isinstance(remainder[0], ast.Expr) and isinstance(remainder[0].value, ast.Str)):
+    if not (remainder and isinstance(remainder[0], ast3.Expr) and isinstance(remainder[0].value, ast3.Str)):
         return [], remainder
     return remainder[0], remainder[1:]
 
@@ -487,14 +500,14 @@ def _split_imports(body):
     in_imports = True
     for line in body:
         if in_imports:
-            if isinstance(line, ast.Import):
+            if isinstance(line, ast3.Import):
                 for alias in line.names:
                     if alias.name in constants.STANDARD_PYTHON_MODULES:
-                        stdimports.append(ast.Import(names=[alias]))
+                        stdimports.append(ast3.Import(names=[alias]))
                     else:
-                        imports.append(ast.Import(names=[alias]))
-            elif isinstance(line, ast.ImportFrom):
-                new_imports = [ast.ImportFrom(
+                        imports.append(ast3.Import(names=[alias]))
+            elif isinstance(line, ast3.ImportFrom):
+                new_imports = [ast3.ImportFrom(
                     module=line.module,
                     names=[name],
                 ) for name in line.names]
@@ -509,57 +522,57 @@ def _split_imports(body):
     return stdimports, imports, remainder
 
 FORMATTERS = {
-    ast.Add: lambda x, y: "+",
-    ast.And: lambda x, y: "and",
-    # ast.arg: lambda x, y: x.arg,
-    ast.arguments: _format_arguments,
-    ast.Assert: _format_assert,
-    ast.Assign: _format_assign,
-    ast.Attribute: _format_attribute,
-    ast.AugAssign: _format_aug_assign,
-    ast.BinOp: _format_binop,
-    ast.Break: lambda x, y: "break",
-    ast.BoolOp: _format_boolop,
-    ast.Call: _format_call,
-    ast.ClassDef: _format_class,
-    ast.Compare: _format_compare,
-    ast.comprehension: _format_comprehension,
-    ast.Dict: _format_dict,
-    ast.Eq: _format_eq,
-    ast.Expr: _format_expression,
-    ast.For: _format_for,
-    ast.FunctionDef: _format_function_def,
-    ast.GtE: lambda x, y: ">=",
-    ast.If: _format_if,
-    ast.Import: _format_import,
-    ast.ImportFrom: _format_import_from,
-    ast.Index: _format_index,
-    ast.List: _format_list,
-    ast.ListComp: _format_list_comprehension,
-    ast.keyword: _format_keyword,
-    ast.Mod: lambda x, y: "%",
-    ast.Mult: _format_multiplication,
-    ast.Name: _format_name,
-    ast.NameConstant: _format_name_constant,
-    ast.Not: lambda x, y: "not ",
-    ast.NotEq: lambda x, y: "!=",
-    ast.Num: _format_number,
-    ast.Or: lambda x, y: "or",
-    ast.Pass: lambda x, y: "pass",
-    ast.Pow: lambda x, y: "**",
-    ast.Raise: _format_raise,
-    ast.Return: _format_return,
-    str: lambda x, y: x,
-    ast.Starred: _format_starred,
-    ast.Str: strings.format_string,
-    ast.Sub: lambda x, y: "-",
-    ast.Subscript: _format_subscript,
-    ast.Try: _format_try,
-    ast.Tuple: _format_tuple,
-    ast.UnaryOp: _format_unary_op,
-    ast.With: _format_with,
-    ast.withitem: _format_withitem,
-    ast.Yield: _format_yield,
+    ast3.Add: lambda x, y: "+",
+    ast3.And: lambda x, y: "and",
+    ast3.arg: _format_arg,
+    ast3.arguments: _format_arguments,
+    ast3.Assert: _format_assert,
+    ast3.Assign: _format_assign,
+    ast3.Attribute: _format_attribute,
+    ast3.AugAssign: _format_aug_assign,
+    ast3.BinOp: _format_binop,
+    ast3.Break: lambda x, y: "break",
+    ast3.BoolOp: _format_boolop,
+    ast3.Call: _format_call,
+    ast3.ClassDef: _format_class,
+    ast3.Compare: _format_compare,
+    ast3.comprehension: _format_comprehension,
+    ast3.Dict: _format_dict,
+    ast3.Eq: _format_eq,
+    ast3.Expr: _format_expression,
+    ast3.For: _format_for,
+    ast3.FunctionDef: _format_function_def,
+    ast3.GtE: lambda x, y: ">=",
+    ast3.If: _format_if,
+    ast3.Import: _format_import,
+    ast3.ImportFrom: _format_import_from,
+    ast3.Index: _format_index,
+    ast3.List: _format_list,
+    ast3.ListComp: _format_list_comprehension,
+    ast3.keyword: _format_keyword,
+    ast3.Mod: lambda x, y: "%",
+    ast3.Mult: _format_multiplication,
+    ast3.Name: _format_name,
+    ast3.NameConstant: _format_name_constant,
+    ast3.Not: lambda x, y: "not ",
+    ast3.NotEq: lambda x, y: "!=",
+    ast3.Num: _format_number,
+    ast3.Or: lambda x, y: "or",
+    ast3.Pass: lambda x, y: "pass",
+    ast3.Pow: lambda x, y: "**",
+    ast3.Raise: _format_raise,
+    ast3.Return: _format_return,
+    ast3.Slice: _format_slice,
+    ast3.Starred: _format_starred,
+    ast3.Str: strings.format_string,
+    ast3.Sub: lambda x, y: "-",
+    ast3.Subscript: _format_subscript,
+    ast3.Try: _format_try,
+    ast3.Tuple: _format_tuple,
+    ast3.UnaryOp: _format_unary_op,
+    ast3.With: _format_with,
+    ast3.withitem: _format_withitem,
+    ast3.Yield: _format_yield,
 }
 
 def _extract_comments(content):
@@ -591,7 +604,7 @@ def _extract_comments(content):
     return results
 
 def serialize(content, max_line_length=120, quote="\"", tab="\t"):
-    data = ast.parse(content)
+    data = ast3.parse(content)
     comments = _extract_comments(content)
     context = types.Context(
         comments=comments,
