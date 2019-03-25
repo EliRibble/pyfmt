@@ -5,41 +5,7 @@ import token
 import tokenize
 
 from typed_ast import ast3
-from pyfmt import constants, strings, types
-
-def _format_arg(value, context):
-    if not value.annotation:
-        return str(value.arg)
-    return "{arg}: {annotation}".format(
-        annotation = _format_value(value.annotation, context.reserve(len(value.arg) + 2)),
-        arg = value.arg,
-    )
-
-
-def _format_arguments(value, context):
-    """Format an argument like 'x, y = z'"""
-    parts = []
-    no_defaults = len(value.args) - len(value.defaults)
-    for i, arg in enumerate(value.args):
-        if i >= no_defaults:
-            default = value.defaults[i-no_defaults]
-            parts.append("{arg}={default}".format(
-                arg = _format_value(arg, context),
-                default = default.value,
-            ))
-        else:
-            parts.append(_format_value(arg, context))
-    if value.vararg:
-        parts.append("*" + value.vararg.arg)
-    assert len(value.kwonlyargs) == len(value.kw_defaults)
-    for i, kwarg in enumerate(value.kwonlyargs):
-        parts.append("{kwarg}={default}".format(
-            kwarg=kwarg.arg,
-            default=value.kw_defaults[i].value))
-    if value.kwarg:
-        parts.append("**" + value.kwarg.arg)
-    possible = ", ".join(parts)
-    return possible
+from pyfmt import constants, functions, strings, types
 
 def _format_assert(value, context):
     if value.msg:
@@ -299,13 +265,14 @@ def _format_for(value, context):
     )
 
 def _format_function_def(func, context):
-    arguments = _format_value(func.args, context)
+    def_ = "def {}".format(func.name)
+    arguments = _format_value(func.args, context.reserve(len(def_)))
     with context.sub() as sub:
         body = _format_body(func.body, context=context)
-    return "def {name}({arguments}){returns}:\n{body}".format(
+    return "{def_}({arguments}){returns}:\n{body}".format(
         arguments=arguments,
         body=body,
-        name=func.name,
+        def_=def_,
         returns=" -> " + _format_value(func.returns, context) if func.returns else "",
     )
 
@@ -525,8 +492,7 @@ def _split_imports(body):
 FORMATTERS = {
     ast3.Add: lambda x, y: "+",
     ast3.And: lambda x, y: "and",
-    ast3.arg: _format_arg,
-    ast3.arguments: _format_arguments,
+    ast3.arguments: functions.format_arguments,
     ast3.Assert: _format_assert,
     ast3.Assign: _format_assign,
     ast3.Attribute: _format_attribute,
@@ -609,6 +575,7 @@ def serialize(content, max_line_length=120, quote="\"", tab="\t"):
     comments = _extract_comments(content)
     context = types.Context(
         comments=comments,
+        format_value=_format_value,
         indent=0,
         max_line_length=max_line_length,
         quote=quote,

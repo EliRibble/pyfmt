@@ -1,4 +1,4 @@
-def print_stuff(a, b, *args, c=None, d=None, **kwargs):
+def print_stuff(a, b, *args, c=None, d={}, **kwargs):
     print(a, b, *args, c, d, kwargs)
 
 print_stuff(

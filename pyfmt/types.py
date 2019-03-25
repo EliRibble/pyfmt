@@ -10,9 +10,10 @@ class Context():
     This class is used heavily in making decisions about the application
     of whitespace.
     """
-    def __init__(self, comments=None, indent=0, inline=False, max_line_length=120, quote="'", reserved_space=0, suppress_tuple_parens=False, tab='\t'):
+    def __init__(self, format_value, comments=None, indent=0, inline=False, max_line_length=120, quote="'", reserved_space=0, suppress_tuple_parens=False, tab='\t'):
         self.comments = comments or []
         self._comments_read_index = 0
+        self.format_value = format_value
         self.indent = indent
         self.inline = inline
         self.max_line_length = max_line_length
@@ -74,7 +75,7 @@ class Context():
         VALID_PARAMS = ("indent", "inline", "max_line_length", "quote", "reserved_space", "suppress_tuple_parens", "tab")
         assert all(k in VALID_PARAMS for k in kwargs.keys())
         params = {k: kwargs.get(k, getattr(self, k)) for k in VALID_PARAMS}
-        return Context(**params)
+        return Context(format_value=self.format_value, **params)
 
     @property
     def remaining_line_length(self) -> int:
