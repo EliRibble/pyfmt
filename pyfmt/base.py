@@ -302,10 +302,11 @@ def _format_function_def(func, context):
     arguments = _format_value(func.args, context)
     with context.sub() as sub:
         body = _format_body(func.body, context=context)
-    return "def {name}({arguments}):\n{body}".format(
+    return "def {name}({arguments}){returns}:\n{body}".format(
         arguments=arguments,
         body=body,
         name=func.name,
+        returns=" -> " + _format_value(func.returns, context) if func.returns else "",
     )
 
 def _format_if(value, context):
