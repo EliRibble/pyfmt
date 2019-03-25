@@ -13,7 +13,7 @@ def _format_arguments(value, context):
     no_defaults = len(value.args) - len(value.defaults)
     for i, arg in enumerate(value.args):
         if i >= no_defaults:
-            default = value.defaults[i]
+            default = value.defaults[i-no_defaults]
             parts.append("{arg}={default}".format(
                 arg = arg.arg,
                 default = default.value,
