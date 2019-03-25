@@ -5,7 +5,9 @@ LineParts = typing.Tuple[typing.Text, typing.Text]
 
 def on_character(
 	lines: typing.Iterable[LineParts],
-	separator: typing.Text) -> typing.Text:
+	separator: typing.Text,
+	joiner: typing.Text="\n",
+	tail: typing.Optional[typing.Text]=None) -> typing.Text:
 	"""Align a set of lines on a common character.
 
 	Given something like [("a", "foo"), ("biff", "gromulon")], "," this should return something like:
@@ -17,10 +19,11 @@ def on_character(
 		return ""
 	max_first = max(len(l[0]) for l in lines)
 	results = [
-		"{{first: <{}}}{{separator}}{{second}}".format(max_first).format(
+		"{{first: <{}}}{{separator}}{{second}}{{tail}}".format(max_first).format(
 			first=first,
 			second=second,
 			separator=separator,
+			tail=tail if tail else "",
 		) for first, second in lines]
-	return "\n".join(results)
+	return joiner.join(results)
 

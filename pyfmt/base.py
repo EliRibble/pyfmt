@@ -5,7 +5,7 @@ import token
 import tokenize
 
 from typed_ast import ast3
-from pyfmt import constants, functions, strings, types
+from pyfmt import alignment, constants, functions, strings, types
 
 def _format_assert(value, context):
     if value.msg:
@@ -209,8 +209,7 @@ def _format_dict(value, context):
 
 def _format_dict_medium(pairs, context):
     "Format a dictionary as if were medium length, one key/value pair per line"
-    parts = ["{}: {},".format(k, v) for k, v in pairs]
-    return "{{\n\t{}\n}}".format("\n\t".join(parts))
+    return "{{\n\t{}\n}}".format(alignment.on_character(pairs, ": ", joiner="\n\t", tail=","))
 
 def _format_dict_short(pairs, context):
     "Format a dictionary as if it were quite short"
