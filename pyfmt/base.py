@@ -375,6 +375,7 @@ FORMATTERS = {
 	ast3.Compare: _format_compare,
 	ast3.comprehension: _format_comprehension,
 	ast3.Dict: _format_dict,
+	ast3.Div: lambda x, y: "/",
 	ast3.Eq: _format_eq,
 	ast3.Expr: _format_expression,
 	ast3.For: _format_for,
