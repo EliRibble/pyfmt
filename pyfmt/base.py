@@ -202,11 +202,12 @@ def _format_if(value, context, prefix="if"):
 		test=test,
 	)
 
-def _format_if_expr(value, context):
-	test = _format_value(value.test, context)
-	with context.sub() as sub:
-		body_ = body.format(value.body, context)
-	return "elif {}:\n{}".format(test, body_)
+def _format_if_exp(value, context):
+	return "{result} if {test} else {orelse}".format(
+		orelse = context.format_value(value.orelse, context),
+		result = context.format_value(value.body, context),
+		test   = context.format_value(value.test, context),
+	)
 
 def _format_import(imp, context):
 	return "import {}".format(
@@ -374,6 +375,7 @@ FORMATTERS = {
 	ast3.FunctionDef: functions.format_function_def,
 	ast3.GtE: lambda x, y: ">=",
 	ast3.If: _format_if,
+	ast3.IfExp: _format_if_exp,
 	ast3.Import: _format_import,
 	ast3.ImportFrom: _format_import_from,
 	ast3.Index: _format_index,
