@@ -410,6 +410,7 @@ FORMATTERS = {
 	ast3.Try: _format_try,
 	ast3.Tuple: _format_tuple,
 	ast3.UnaryOp: _format_unary_op,
+	ast3.USub: lambda x, y: "-",
 	ast3.While: _format_while,
 	ast3.With: _format_with,
 	ast3.withitem: _format_withitem,
