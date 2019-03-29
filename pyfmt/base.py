@@ -318,6 +318,7 @@ FORMATTERS = {
     ast3.arguments: functions.format_arguments,
     ast3.Assert: _format_assert,
     ast3.Assign: _format_assign,
+    ast3.AsyncFunctionDef: functions.format_async_function_def,
     ast3.Attribute: _format_attribute,
     ast3.AugAssign: _format_aug_assign,
     ast3.BinOp: _format_binop,

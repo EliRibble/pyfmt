@@ -24,23 +24,17 @@ def format_arguments(value, context):
 		return possible
 	return _format_arguments_vertically(value, context, args)
 
+def format_async_function_def(func, context):
+	return _format_function_def("async def", func, context)
+
+def format_function_def(func, context):
+	return _format_function_def("def", func, context)
+
 def _align_kwargs(kwargs: typing.Iterable[Arguments]) -> typing.Iterable[typing.Text]:
 	"""Given an iterable of kwargs line them up and return them."""
 	parts = [(kwarg.name, kwarg.default) for kwarg in kwargs]
 	parts = sorted(parts, key=lambda x: x[0])
 	return alignment.on_character(parts, " = ")
-
-def format_function_def(func, context):
-    def_ = "def {}".format(func.name)
-    arguments = context.format_value(func.args, context.reserve(len(def_)))
-    with context.sub() as sub:
-        body_ = body.format(func.body, context=context)
-    return "{def_}({arguments}){returns}:\n{body}".format(
-        arguments=arguments,
-        body=body_,
-        def_=def_,
-        returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
-    )
 
 def _collate_arguments(value, context) -> typing.Iterable[Arguments]:
 	"""Given the arguments turn them into an easier structure.
@@ -95,4 +89,16 @@ def _format_arguments_vertically(value, context, args):
 	if value.kwarg:
 		parts.append("**" + value.kwarg.arg)
 	return "\n\t" + (",\n\t".join(parts))
+
+def _format_function_def(prefix, func, context):
+    def_ = "{} {}".format(prefix, func.name)
+    arguments = context.format_value(func.args, context.reserve(len(def_)))
+    with context.sub() as sub:
+        body_ = body.format(func.body, context=context)
+    return "{def_}({arguments}){returns}:\n{body}".format(
+        arguments=arguments,
+        body=body_,
+        def_=def_,
+        returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
+    )
 
