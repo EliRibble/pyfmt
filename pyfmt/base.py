@@ -263,8 +263,14 @@ def _format_return(value, context):
 	return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
 def _format_slice(value, context):
-	import pdb;pdb.set_trace()
-	return ""
+	lower = _format_value(value.lower, context) if value.lower else ""
+	upper = _format_value(value.upper, context) if value.upper else ""
+	step = ":" + _format_value(value.step, context) if value.step else ""
+	return "{lower}{step}:{upper}".format(
+		lower = lower,
+		step = step,
+		upper = upper,
+	)
 
 def _format_starred(value, context):
 	return "*" + value.value.id
