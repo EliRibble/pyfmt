@@ -499,6 +499,7 @@ FORMATTERS = {
     ast3.AugAssign: _format_aug_assign,
     ast3.BinOp: _format_binop,
     ast3.BitAnd: lambda x, y: "&",
+    ast3.BitOr: lambda x, y: "|",
     ast3.Break: lambda x, y: "break",
     ast3.BoolOp: _format_boolop,
     ast3.Call: _format_call,
