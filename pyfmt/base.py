@@ -380,6 +380,7 @@ FORMATTERS = {
 	ast3.List: _format_list,
 	ast3.ListComp: _format_list_comprehension,
 	ast3.Lt: lambda x, y: "<",
+	ast3.LtE: lambda x, y: "<=",
 	ast3.keyword: _format_keyword,
 	ast3.Mod: lambda x, y: "%",
 	ast3.Mult: _format_multiplication,
