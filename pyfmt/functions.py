@@ -1,7 +1,7 @@
 import collections
 import typing
 
-from pyfmt import alignment, body
+from pyfmt import alignment, body, decorators
 from typed_ast import ast3
 
 Arguments = collections.namedtuple("Arguments", ("arguments", "karguments", "kwargs", "vargs"))
@@ -91,9 +91,7 @@ def _format_arguments_vertically(value, context, args):
 	return "\n\t" + (",\n\t".join(parts))
 
 def _format_function_def(prefix, func, context):
-	decorators = ["@" + context.format_value(d, context) for d in func.decorator_list]
-	decorators = "\n".join(decorators)
-	decorators = decorators + "\n" if decorators else ""
+	decorators_ = decorators.format(func.decorator_list, context)
 	def_ = "{} {}".format(prefix, func.name)
 	arguments = context.format_value(func.args, context.reserve(len(def_)))
 	with context.sub() as sub:
@@ -101,7 +99,7 @@ def _format_function_def(prefix, func, context):
 	return "{decorators}{def_}({arguments}){returns}:\n{body}".format(
 		arguments=arguments,
 		body=body_,
-		decorators=decorators,
+		decorators=decorators_,
 		def_=def_,
 		returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
 	)

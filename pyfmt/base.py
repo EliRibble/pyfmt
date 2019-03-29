@@ -5,7 +5,7 @@ import token
 import tokenize
 
 from typed_ast import ast3
-from pyfmt import alignment, body, constants, functions, strings, types
+from pyfmt import alignment, body, constants, decorators, functions, strings, types
 
 def _format_assert(value, context):
     if value.msg:
@@ -94,10 +94,12 @@ def _format_call_vertical(value, context):
 
 def _format_class(value, context):
     with context.sub() as sub:
+        decorators_ = decorators.format(value.decorator_list, context)
         body_ = body.format(value.body, context)
-    return "class {name}({bases}):\n{body}".format(
+    return "{decorators}class {name}({bases}):\n{body}".format(
         bases=", ".join([b.id for b in value.bases]),
         body=body_,
+        decorators=decorators_,
         name=value.name,
     )
 
