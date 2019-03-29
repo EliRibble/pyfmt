@@ -174,13 +174,27 @@ def _format_for(value, context):
         target=_format_value(value.target, context.override(suppress_tuple_parens=True)),
     )
 
+def _format_orelse(orelse, context):
+	if not orelse:
+		return ""
+	# value.orelse will either be a list of ast3.If
+	# (if: ... elif: ...) or it will be a list of
+	# the content of the "else" clause.
+	if isinstance(orelse[0], ast3.If):
+		lines = [_format_if(e, context, "elif") for e in orelse]
+		results = "\n".join(lines)
+		results = "\n" + results
+		return results
+	
+	with context.sub() as sub:
+		body_ = body.format(orelse, context)
+	return "\nelse:\n{}".format(body_)
+
 def _format_if(value, context, prefix="if"):
     test = _format_value(value.test, context)
     with context.sub() as sub:
         body_ = body.format(value.body, context)
-    orelses = [_format_if(orelse, context, "elif") for orelse in value.orelse]
-    orelses = "\n".join(orelses)
-    orelses = "\n" + orelses if orelses else ""
+    orelses = _format_orelse(value.orelse, context)
     return "{prefix} {test}:\n{body}{orelses}".format(
         body=body_,
         orelses=orelses,
