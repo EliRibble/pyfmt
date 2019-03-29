@@ -34,8 +34,9 @@ def _format_attribute(value, context):
     )
 
 def _format_aug_assign(value, context):
-    return "{left} += {right}".format(
-        left = _format_value(value.target, context),
+    return "{left} {op}= {right}".format(
+        left  = _format_value(value.target, context),
+        op    = _format_value(value.op, context),
         right = _format_value(value.value, context),
     )
 
