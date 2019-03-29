@@ -327,6 +327,13 @@ def _format_value(value, context):
 def _format_yield(value, context):
 	return "yield {}".format(_format_value(value.value, context))
 
+def _format_while(value, context):
+	return "while {condition}:\n{body}{orelse}".format(
+		body=body.format(value.body, context),
+		condition=_format_value(value.test, context),
+		orelse=_format_orelse(value.orelse, context),
+	)
+
 def _format_with(value, context):
 	return "with {context}:\n{body}".format(
 		body=body.format(value.body, context),
@@ -372,6 +379,7 @@ FORMATTERS = {
 	ast3.Index: _format_index,
 	ast3.List: _format_list,
 	ast3.ListComp: _format_list_comprehension,
+	ast3.Lt: lambda x, y: "<",
 	ast3.keyword: _format_keyword,
 	ast3.Mod: lambda x, y: "%",
 	ast3.Mult: _format_multiplication,
@@ -393,6 +401,7 @@ FORMATTERS = {
 	ast3.Try: _format_try,
 	ast3.Tuple: _format_tuple,
 	ast3.UnaryOp: _format_unary_op,
+	ast3.While: _format_while,
 	ast3.With: _format_with,
 	ast3.withitem: _format_withitem,
 	ast3.Yield: _format_yield,
