@@ -380,6 +380,7 @@ FORMATTERS = {
 	ast3.Expr: _format_expression,
 	ast3.For: _format_for,
 	ast3.FunctionDef: functions.format_function_def,
+	ast3.Gt: lambda x, y: ">",
 	ast3.GtE: lambda x, y: ">=",
 	ast3.If: _format_if,
 	ast3.IfExp: _format_if_exp,
