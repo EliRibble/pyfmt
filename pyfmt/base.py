@@ -266,7 +266,7 @@ def _format_slice(value, context):
 	lower = _format_value(value.lower, context) if value.lower else ""
 	upper = _format_value(value.upper, context) if value.upper else ""
 	step = ":" + _format_value(value.step, context) if value.step else ""
-	return "{lower}{step}:{upper}".format(
+	return "{lower}:{upper}{step}".format(
 		lower = lower,
 		step = step,
 		upper = upper,
