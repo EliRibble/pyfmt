@@ -91,14 +91,18 @@ def _format_arguments_vertically(value, context, args):
 	return "\n\t" + (",\n\t".join(parts))
 
 def _format_function_def(prefix, func, context):
-    def_ = "{} {}".format(prefix, func.name)
-    arguments = context.format_value(func.args, context.reserve(len(def_)))
-    with context.sub() as sub:
-        body_ = body.format(func.body, context=context)
-    return "{def_}({arguments}){returns}:\n{body}".format(
-        arguments=arguments,
-        body=body_,
-        def_=def_,
-        returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
-    )
+	decorators = ["@" + context.format_value(d, context) for d in func.decorator_list]
+	decorators = "\n".join(decorators)
+	decorators = decorators + "\n" if decorators else ""
+	def_ = "{} {}".format(prefix, func.name)
+	arguments = context.format_value(func.args, context.reserve(len(def_)))
+	with context.sub() as sub:
+		body_ = body.format(func.body, context=context)
+	return "{decorators}{def_}({arguments}){returns}:\n{body}".format(
+		arguments=arguments,
+		body=body_,
+		decorators=decorators,
+		def_=def_,
+		returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
+	)
 
