@@ -73,6 +73,31 @@ for (a, b) in foo:
 
 I'm going to claim it's because it removes characters without hurting readability, but honestly it's just because it's what I am used to and I had to make a judgement call.
 
+## Promote else: if: to elif:
+
+When given code like:
+
+```
+if foo:
+	pass
+else:
+	if bar:
+		pass
+```
+
+The formatter will output
+
+```
+if foo:
+	pass
+elif bar:
+	pass
+```
+
+This seems like a bug. It's not. The two are logically
+equivalent and one is shorter than the other, so we
+prefer it.
+
 # Hacking
 
 Create a virtualenv. `pip install -e .` at the root of the repository. `nose2` to run tests.
