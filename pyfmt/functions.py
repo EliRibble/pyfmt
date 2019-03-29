@@ -1,7 +1,7 @@
 import collections
 import typing
 
-from pyfmt import alignment
+from pyfmt import alignment, body
 from typed_ast import ast3
 
 Arguments = collections.namedtuple("Arguments", ("arguments", "karguments", "kwargs", "vargs"))
@@ -29,6 +29,18 @@ def _align_kwargs(kwargs: typing.Iterable[Arguments]) -> typing.Iterable[typing.
 	parts = [(kwarg.name, kwarg.default) for kwarg in kwargs]
 	parts = sorted(parts, key=lambda x: x[0])
 	return alignment.on_character(parts, " = ")
+
+def format_function_def(func, context):
+    def_ = "def {}".format(func.name)
+    arguments = context.format_value(func.args, context.reserve(len(def_)))
+    with context.sub() as sub:
+        body_ = body.format(func.body, context=context)
+    return "{def_}({arguments}){returns}:\n{body}".format(
+        arguments=arguments,
+        body=body_,
+        def_=def_,
+        returns=" -> " + context.format_value(func.returns, context) if func.returns else "",
+    )
 
 def _collate_arguments(value, context) -> typing.Iterable[Arguments]:
 	"""Given the arguments turn them into an easier structure.

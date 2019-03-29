@@ -5,7 +5,7 @@ import token
 import tokenize
 
 from typed_ast import ast3
-from pyfmt import alignment, constants, functions, strings, types
+from pyfmt import alignment, body, constants, functions, strings, types
 
 def _format_assert(value, context):
     if value.msg:
@@ -52,45 +52,6 @@ def _format_boolop(value, context):
     op_part = _format_value(value.op, context)
     return " {} ".format(op_part).join(parts)
 
-def _format_body(body, context, do_indent=True):
-    """Format a body like a function or module body.
-
-    This breaks the body into large sections for the sake
-    of sorting certain orderable statements within those
-    sections, like imports.
-    """
-    doc, remainder = _split_docstring(body)
-    stdimports, imports, remainder = _split_imports(remainder)
-    constants, remainder = _split_constants(remainder)
-    declarations, remainder = _split_declarations(remainder)
-
-    constants = _format_constants(constants, context)
-    declarations = _format_declarations(declarations, context)
-    docstring = _format_docstring(doc, context)
-    stdimports = _format_imports(stdimports, context)
-    imports = _format_imports(imports, context)
-    content = _format_content(remainder, context)
-    for section in (constants, declarations, stdimports, imports):
-        if section:
-            section.append("")
-
-    # There may be comments in the body that were not extracted
-    # in _format_content because it was empty. Find any of those
-    # comments and add them to the body now
-    comments = []
-    for node in body[::-1]:
-        if hasattr(node, "lineno"):
-            # We need to capture any comments that are at the end of this block of
-            # code. In order to do that we take whatever the highest line number
-            # is and we get the comments for an imaginary line of code that is
-            # beyond wherever the comment would be (+2).
-            comments = context.get_standalone_comments(node.lineno+2, node.col_offset, allow_dedent=False)
-            break
-            
-    body = [l for section in (docstring, stdimports, imports, constants, declarations, content) for l in section]
-    body += [comment.content for comment in comments]
-    return context.do_indent(body) if do_indent else "\n".join(body)
-   
 
 def _format_call(value, context):
     """Format a function call like 'print(a*b, foo=x)'"""
@@ -133,10 +94,10 @@ def _format_call_vertical(value, context):
 
 def _format_class(value, context):
     with context.sub() as sub:
-        body = _format_body(value.body, context)
+        body_ = body.format(value.body, context)
     return "class {name}({bases}):\n{body}".format(
         bases=", ".join([b.id for b in value.bases]),
-        body=body,
+        body=body_,
         name=value.name,
     )
 
@@ -161,39 +122,6 @@ def _format_comprehension(value, context):
         iter=_format_value(value.iter, context),
     )
 
-def _format_constants(constants, context):
-    return sorted([_format_value(c, context) for c in constants])
-
-def _format_content(section, context) -> list:
-    """Convert a tree of content into a list of lines to be indented and joined."""
-    if not section:
-        return []
-
-    BLANKLINES = {
-        ast3.ClassDef: 1,
-        ast3.FunctionDef: 1,
-    }
-    lines = []
-    for node in section:
-        if hasattr(node, 'lineno'):
-            pre_comments = context.get_standalone_comments(node.lineno, node.col_offset)
-            logging.debug("Found %d pre-comments for %s content at %d", len(pre_comments), type(node), node.lineno)
-            lines += [comment.content for comment in pre_comments]
-            inline_comment = context.get_inline_comment(node.lineno).content
-            inline_comment = " " + inline_comment if inline_comment else ""
-        else:
-            inline_comment = ""
-        content = _format_value(node, context)
-        content_lines = content.split("\n")
-        content_lines[0] = content_lines[0] + inline_comment
-        lines += content_lines
-        blanks = BLANKLINES.get(type(node), 0)
-        lines += ([""] * blanks)
-    return lines
-
-def _format_declarations(declarations, context):
-    return [_format_value(d, context) for d in declarations]
-
 def _format_dict(value, context):
     "Format a dictionary, choosing the best approach of several"
     data = {
@@ -217,34 +145,14 @@ def _format_dict_short(pairs, context):
     parts = ["{}: {}".format(k, v) for k, v in pairs]
     return "{{{}}}".format(", ".join(parts))
 
-def _format_docstring(value, context) -> list:
-    """Given a single expression known to be a docstring apply special formatting.
-
-    Returns:
-        A list of lines
-    """
-    # A docstring will be a single really long string expression, often with
-    # embedded tabs for formatting. We need to rip those out to apply our own
-    # formatting.
-    if not value:
-        return []
-    subvalue = value.value
-    if "\n" in subvalue.s:
-        content = (context.quote * 3) + subvalue.s + (context.quote * 3)
-        lines = content.split("\n")
-    else:
-        lines = [context.quote + subvalue.s + context.quote]
-    clean_lines = [line.strip() if line else "" for line in lines]
-    return clean_lines
-
 def _format_eq(value, context):
     return "=="
 
 def _format_except_handler(value, context):
-    body = _format_body(value.body, context)
+    body_ = body.format(value.body, context)
     type_ = _format_value(value.type, context.reserve(len("except ")))
     return "except {type_}{name}:\n{body}".format(
-        body  = body,
+        body  = body_,
         name  = (" as " + value.name) if value.name else "",
         type_ = type_,
     )
@@ -255,32 +163,20 @@ def _format_expression(value, context):
 def _format_for(value, context):
     else_ = ""
     if value.orelse:
-        elsebody = _format_body(value.orelse, context)
+        elsebody = body.format(value.orelse, context)
         else_ = "\nelse:\n{}".format(elsebody)
     return "for {target} in {iter_}:\n{body}{else_}".format(
-        body=_format_body(value.body, context),
+        body=body.format(value.body, context),
         else_=else_,
         iter_=_format_value(value.iter, context),
         target=_format_value(value.target, context.override(suppress_tuple_parens=True)),
     )
 
-def _format_function_def(func, context):
-    def_ = "def {}".format(func.name)
-    arguments = _format_value(func.args, context.reserve(len(def_)))
-    with context.sub() as sub:
-        body = _format_body(func.body, context=context)
-    return "{def_}({arguments}){returns}:\n{body}".format(
-        arguments=arguments,
-        body=body,
-        def_=def_,
-        returns=" -> " + _format_value(func.returns, context) if func.returns else "",
-    )
-
 def _format_if(value, context):
     test = _format_value(value.test, context)
     with context.sub() as sub:
-        body = _format_body(value.body, context)
-    return "if {}:\n{}".format(test, body)
+        body_ = body.format(value.body, context)
+    return "if {}:\n{}".format(test, body_)
 
 def _format_import(imp, context):
     return "import {}".format(
@@ -290,10 +186,6 @@ def _format_import_from(imp, context):
     return "from {} import {}".format(
         imp.module,
         ', '.join(sorted(n.name for n in imp.names)))
-
-def _format_imports(imports, context) -> list:
-    lines = [_format_value(i, context) for i in imports]
-    return sorted(lines)
 
 def _format_index(value, context):
     return _format_value(value.value, context)
@@ -369,15 +261,15 @@ def _format_subscript(value, context):
 def _format_try(value, context):
     else_ = ""
     if value.orelse:
-        elsebody = _format_body(value.orelse, context)
+        elsebody = body.format(value.orelse, context)
         else_ = "\nelse:\n{}".format(elsebody)
     finally_ = ""
     if value.finalbody:
-        finalbody = _format_body(value.finalbody, context)
+        finalbody = body.format(value.finalbody, context)
         finally_ = "\nfinally:\n{}".format(finalbody)
     handlers = [_format_except_handler(handler, context) for handler in value.handlers]
     return "try:\n{body}\n{handlers}{else_}{finally_}".format(
-        body=_format_body(value.body, context),
+        body=body.format(value.body, context),
         else_=else_,
         finally_=finally_,
         handlers="\n".join(handlers),
@@ -407,7 +299,7 @@ def _format_yield(value, context):
 
 def _format_with(value, context):
     return "with {context}:\n{body}".format(
-        body=_format_body(value.body, context),
+        body=body.format(value.body, context),
         context=_format_value(value.items[0], context),
     )
 
@@ -419,75 +311,6 @@ def _format_withitem(value, context):
         expr=_format_value(value.context_expr, context),
         optional=optional,
     )
-
-def _split_constants(remainder):
-    "Given the remainder of a body return the constants and whatever else is left."
-    constants = []
-    while remainder and isinstance(remainder[0], ast3.Assign):
-        node = remainder[0]
-        if len(node.targets) > 1:
-            break;
-        if not isinstance(node.targets[0], ast3.Name):
-            break;
-        if type(node.value) not in (ast3.NameConstant, ast3.Str, ast3.Num):
-            break;
-        constants.append(remainder.pop(0))
-    logging.debug("Found %d constant lines", len(constants))
-    return constants, remainder
-
-def _split_declarations(remainder):
-    "Given the remainder of a body return the declarations and whatever else is left."
-    declarations = []
-    while remainder and isinstance(remainder[0], ast3.Assign):
-        node = remainder[0]
-        if len(node.targets) > 1:
-            break;
-        if not isinstance(node.targets[0], ast3.Name):
-            break;
-        if type(node.value) not in (
-            ast3.Call,
-            ast3.NameConstant,
-            ast3.Num,
-            ast3.Str):
-            break;
-        declarations.append(remainder.pop(0))
-    logging.debug("Found %d declaration lines", len(declarations))
-    return declarations, remainder
-
-def _split_docstring(remainder):
-    """Given the non-import sections of a body, return the docstring and remainder."""
-    if not (remainder and isinstance(remainder[0], ast3.Expr) and isinstance(remainder[0].value, ast3.Str)):
-        return [], remainder
-    return remainder[0], remainder[1:]
-
-def _split_imports(body):
-    """Given a body reurn the import statemens and remaining statements."""
-    imports    = []
-    remainder  = []
-    stdimports = []
-    in_imports = True
-    for line in body:
-        if in_imports:
-            if isinstance(line, ast3.Import):
-                for alias in line.names:
-                    if alias.name in constants.STANDARD_PYTHON_MODULES:
-                        stdimports.append(ast3.Import(names=[alias]))
-                    else:
-                        imports.append(ast3.Import(names=[alias]))
-            elif isinstance(line, ast3.ImportFrom):
-                new_imports = [ast3.ImportFrom(
-                    module=line.module,
-                    names=[name],
-                ) for name in line.names]
-                if line.module in constants.STANDARD_PYTHON_MODULES:
-                    stdimports += new_imports
-                else:
-                    imports += new_imports
-            else:
-                in_imports = False
-        if not in_imports:
-            remainder.append(line)
-    return stdimports, imports, remainder
 
 FORMATTERS = {
     ast3.Add: lambda x, y: "+",
@@ -510,7 +333,7 @@ FORMATTERS = {
     ast3.Eq: _format_eq,
     ast3.Expr: _format_expression,
     ast3.For: _format_for,
-    ast3.FunctionDef: _format_function_def,
+    ast3.FunctionDef: functions.format_function_def,
     ast3.GtE: lambda x, y: ">=",
     ast3.If: _format_if,
     ast3.Import: _format_import,
@@ -582,5 +405,5 @@ def serialize(content, max_line_length=120, quote="\"", tab="\t"):
         max_line_length=max_line_length,
         quote=quote,
         tab=tab)
-    result = _format_body(data.body, context, do_indent=False).strip() + "\n"
+    result = body.format(data.body, context, do_indent=False).strip() + "\n"
     return result
