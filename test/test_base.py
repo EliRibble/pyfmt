@@ -53,11 +53,11 @@ def _get_diff(output, expected):
 		"{expected}\n"
 		"--------- Failure line {line} char {char}\n"
 	).format(
-		char		 = char,
-		expected	 = _lined(expected),
+		char         = char,
+		expected     = _lined(expected),
 		expectedrepr = repr(expected),
-		line		 = line,
-		output	   = _lined(output),
+		line         = line,
+		output       = _lined(output),
 		outputrepr   = repr(output))
 
 def _lined(output):
