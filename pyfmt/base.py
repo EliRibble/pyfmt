@@ -174,6 +174,13 @@ def _format_for(value, context):
 		target=_format_value(value.target, context.override(suppress_tuple_parens=True)),
 	)
 
+def _format_generator(value, context):
+	generators = "".join([_format_value(g, context) for g in value.generators])
+	return "{} {}".format(
+		_format_value(value.elt, context),
+		generators,
+	)
+
 def _format_orelse(orelse, context):
 	if not orelse:
 		return ""
@@ -380,6 +387,7 @@ FORMATTERS = {
 	ast3.Expr: _format_expression,
 	ast3.For: _format_for,
 	ast3.FunctionDef: functions.format_function_def,
+	ast3.GeneratorExp: _format_generator,
 	ast3.Gt: lambda x, y: ">",
 	ast3.GtE: lambda x, y: ">=",
 	ast3.If: _format_if,
