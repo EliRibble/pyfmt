@@ -235,10 +235,10 @@ def _format_list(value, context):
 	return "[{}]".format(", ".join(elts))
 
 def _format_list_comprehension(comp, context):
-	assert len(comp.generators) == 1
+	generators = [_format_value(g, context) for g in comp.generators]
 	return "[{elt} {generators}]".format(
 		elt = _format_value(comp.elt, context),
-		generators = _format_value(comp.generators[0], context),
+		generators = " ".join(generators),
 	)
 
 def _format_keyword(value, context, pad_key=None):
