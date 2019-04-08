@@ -20,10 +20,10 @@ def _format_assert(value, context):
 	return "assert {}".format(_format_value(value.test, context))
 
 def _format_assign(value, context):
-	targets = _format_targets(value.targets)
+	targets = [_format_value(t, context.override(suppress_tuple_parens=True)) for t in value.targets]
 	value = _format_value(value.value, context.reserve(len(targets) + 3))
 	return "{targets} = {value}".format(
-		targets=targets,
+		targets=", ".join(targets),
 		value=value,
 	)
 
@@ -292,20 +292,6 @@ def _format_slice(value, context):
 
 def _format_starred(value, context):
 	return "*" + value.value.id
-
-def _format_targets(targets):
-	result = []
-	for target in targets:
-		if type(target) == ast3.Name:
-			result.append(target.id)
-		elif type(target) == ast3.Tuple:
-			for elt in target.elts:
-				result.append(elt.id)
-		elif type(target) == ast3.Attribute:
-			result.append("{}.{}".format(target.value.id, target.attr))
-		else:
-			raise Exception("No idea how to format target: {}".format(target))
-	return ", ".join(result)
 
 def _format_subscript(value, context):
 	return "{value}[{slice_}]".format(
