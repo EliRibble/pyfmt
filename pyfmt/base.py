@@ -390,6 +390,7 @@ FORMATTERS = {
 	ast3.GtE: lambda x, y: ">=",
 	ast3.If: _format_if,
 	ast3.IfExp: _format_if_exp,
+	ast3.In: lambda x, y: "in",
 	ast3.Is: lambda x, y: "is",
 	ast3.Import: _format_import,
 	ast3.ImportFrom: _format_import_from,
