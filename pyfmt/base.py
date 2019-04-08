@@ -318,10 +318,15 @@ def _format_try(value, context):
 
 def _format_tuple(value, context):
 	content = [_format_value(elt, context) for elt in value.elts]
-	content = ", ".join(content)
-	if context.suppress_tuple_parens:
-		return content
-	return "({})".format(content)
+	result = ", ".join(content)
+	if not context.suppress_tuple_parens:
+		result = "({})".format(result)
+	if len(result) <= context.max_line_length:
+		return result
+	result = ",\n\t".join(content)
+	if not context.suppress_tuple_parens:
+		return "(\n\t{},\n)".format(result)
+	return result
 
 def _format_unary_op(value, context):
 	return "{op}{operand}".format(
