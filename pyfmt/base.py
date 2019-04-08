@@ -21,6 +21,10 @@ def _format_assert(value, context):
 
 def _format_assign(value, context):
 	targets = [_format_value(t, context.override(suppress_tuple_parens=True)) for t in value.targets]
+	# We can't suppress the parens with a newline because that will create
+	# syntax errors.
+	if any("\n" in t for t in targets):
+		targets = [_format_value(t, context) for t in value.targets]
 	value = _format_value(value.value, context.reserve(len(targets) + 3))
 	return "{targets} = {value}".format(
 		targets=", ".join(targets),

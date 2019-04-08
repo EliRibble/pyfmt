@@ -1,0 +1,8 @@
+(
+	some_really_long_variable_name_you_should_never_use_1,
+	some_really_long_variable_name_you_should_never_use_2,
+	some_really_long_variable_name_you_should_never_use_3,
+) = (1, 2, 3)
+print(some_really_long_variable_name_you_should_never_use_1,
+	some_really_long_variable_name_you_should_never_use_2,
+	some_really_long_variable_name_you_should_never_use_3)
