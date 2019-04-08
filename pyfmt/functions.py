@@ -31,9 +31,16 @@ def format_function_def(func, context):
 	return _format_function_def("def", func, context)
 
 def format_lambda(lambda_, context):
-	args = context.format_value(lambda_.args, context.reserve(len("lambda ")))
-	body_ = context.format_value(lambda_.body, context=context)
-	return "lambda {args}: {body}".format(
+	prefix = len("lambda ")
+	args = context.format_value(lambda_.args, context.reserve(prefix))
+	body_ = context.format_value(lambda_.body, context=context.reserve(prefix + len(args)))
+	possible = "lambda {args}: {body}".format(
+		args = args,
+		body = body_,
+	)
+	if len(possible) <= context.remaining_line_length:
+		return possible
+	return "lambda {args}:\n\t{body}".format(
 		args = args,
 		body = body_,
 	)
