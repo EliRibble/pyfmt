@@ -138,6 +138,17 @@ def _format_dict(value, context):
 	medium = _format_dict_medium(pairs, context)
 	return medium
 
+def _format_dict_comprehension(comprehension, context):
+	"Format a dict comprehension, like {a: b for a, b in foo}."
+	key = _format_value(comprehension.key, context.reserve(1))
+	value = _format_value(comprehension.value, context.reserve(1 + len(key)))
+	generators = [_format_value(g, context.reserve(2 + len(key) + len(value))) for g in comprehension.generators]
+	return "{{{key}: {value} {generators}}}".format(
+		generators = " ".join(generators),
+		key        = key,
+		value      = value,
+	)
+
 def _format_dict_medium(pairs, context):
 	"Format a dictionary as if were medium length, one key/value pair per line"
 	return "{{\n\t{}\n}}".format(alignment.on_character(pairs, ": ", joiner="\n\t", tail=","))
@@ -382,6 +393,7 @@ FORMATTERS = {
 	ast3.Compare: _format_compare,
 	ast3.comprehension: _format_comprehension,
 	ast3.Dict: _format_dict,
+	ast3.DictComp: _format_dict_comprehension,
 	ast3.Div: lambda x, y: "/",
 	ast3.Eq: _format_eq,
 	ast3.Expr: _format_expression,
