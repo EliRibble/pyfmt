@@ -395,6 +395,7 @@ FORMATTERS = {
 	ast3.Import: _format_import,
 	ast3.ImportFrom: _format_import_from,
 	ast3.Index: _format_index,
+	ast3.Lambda: functions.format_lambda,
 	ast3.List: _format_list,
 	ast3.ListComp: _format_list_comprehension,
 	ast3.Lt: lambda x, y: "<",

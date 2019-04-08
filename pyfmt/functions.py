@@ -30,6 +30,14 @@ def format_async_function_def(func, context):
 def format_function_def(func, context):
 	return _format_function_def("def", func, context)
 
+def format_lambda(lambda_, context):
+	args = context.format_value(lambda_.args, context.reserve(len("lambda ")))
+	body_ = context.format_value(lambda_.body, context=context)
+	return "lambda {args}: {body}".format(
+		args = args,
+		body = body_,
+	)
+
 def _align_kwargs(kwargs: typing.Iterable[Arguments]) -> typing.Iterable[typing.Text]:
 	"""Given an iterable of kwargs line them up and return them."""
 	parts = [(kwarg.name, kwarg.default) for kwarg in kwargs]
