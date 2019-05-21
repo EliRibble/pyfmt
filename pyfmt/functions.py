@@ -1,7 +1,7 @@
 import collections
 import typing
 
-from pyfmt import alignment, body, decorators
+from pyfmt import alignment, body, decorators, errors
 from typed_ast import ast3
 
 Arguments = collections.namedtuple("Arguments", ("arguments", "karguments", "kwargs", "vargs"))
@@ -19,9 +19,10 @@ class Argument:
 def format_arguments(value, context):
 	"""Format an argument like 'x, y = z'"""
 	args = _collate_arguments(value, context)
-	possible = _format_arguments_horizontally(value, context, args)
-	if len(possible) <= context.remaining_line_length:
-		return possible
+	try:
+		return _format_arguments_horizontally(value, context, args)
+	except errors.NotPossible:
+		pass
 	return _format_arguments_vertically(value, context, args)
 
 def format_async_function_def(func, context):
@@ -38,11 +39,14 @@ def format_lambda(lambda_, context):
 		args = args,
 		body = body_,
 	)
-	if len(possible) <= context.remaining_line_length:
+	lines = possible.split("\n")
+	if all([len(l) <= context.remaining_line_length for l in lines]):
 		return possible
-	return "lambda {args}:\n\t{body}".format(
+	body_parts = body_.split("\n")
+	body_parts = context.add_indent(body_parts)
+	return "lambda {args}:\n{body}".format(
 		args = args,
-		body = body_,
+		body = "\n".join(body_parts),
 	)
 
 def _align_kwargs(kwargs: typing.Iterable[Arguments]) -> typing.Iterable[typing.Text]:
@@ -94,7 +98,10 @@ def _format_arguments_horizontally(value, context, args):
 	parts += [_format_arg(kwarg, context) for kwarg in args[len(value.args):]]
 	if value.kwarg:
 		parts.append("**" + value.kwarg.arg)
-	return ", ".join(parts)
+	result = ", ".join(parts)
+	if len(result) <= context.remaining_line_length:
+		return result
+	raise errors.NotPossible("Line '%s' is too long.")
 
 def _format_arguments_vertically(value, context, args):
 	parts = [_format_arg(arg, context) for arg in args[:len(value.args)]]

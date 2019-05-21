@@ -41,7 +41,9 @@ def format(body, context, do_indent=True):
 			
 	body = [l for section in (docstring, stdimports, imports, constants, declarations, content) for l in section]
 	body += [comment.content for comment in comments]
-	return context.do_indent(body) if do_indent else "\n".join(body)
+	if do_indent:
+		body = context.add_indent(body)
+	return "\n".join(body)
    
 def _format_constants(constants, context):
 	return sorted([context.format_value(c, context) for c in constants])

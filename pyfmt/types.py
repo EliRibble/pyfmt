@@ -1,6 +1,7 @@
 import collections
 import contextlib
 import logging
+import typing
 
 Comment = collections.namedtuple("Comment", ("srow", "scolumn", "content", "dedent"))
 
@@ -22,17 +23,16 @@ class Context():
         self.suppress_tuple_parens = suppress_tuple_parens
         self.tab = tab
 
-    def do_indent(self, lines) -> str:
-        """Indent a list of lines
+    def add_indent(self, lines: typing.Iterable[typing.Text]) -> typing.Iterable[typing.Text]:
+        """Indent a list of lines by a single indent.
 
         Args:
             lines: a list of lines to indent and join
         Returns: The joined lines with indentation
         """
-        indented_lines = [
+        return [
             self.tab + line if line else ""
             for line in lines]
-        return "\n".join(indented_lines)
 
     def get_inline_comment(self, lineno):
         """Get comment in the provided line."""
@@ -82,9 +82,32 @@ class Context():
         return self.max_line_length - self.reserved_space
 
     def reserve(self, length: int) -> None:
+        """Reserve the given amount of characters on the current line.
+
+        This is essential to the proper functioning of calculations
+        to honor the line length limits. This function indicates that
+        some number of characters have already been used on the current
+        line so that functions that calculate the formatting approach
+        for the rest of the line know their constraints.
+        """
         return self.override(
             reserved_space=((self.indent * len(self.tab)) + length),
         )
+    def reserve_text(self, text: typing.Text) -> None:
+        """Reserve some amount of text on the current line.
+
+        Many formatting functions generate complex text on part of
+        a line. Sometimes those functions may contain newlines which
+        makes it difficult to use the text verbatim in reserve(). This
+        function has the smarts to look for newlines to reserve the
+        proper amount on the last line.
+        """
+        try:
+            last_newline = text.rindex("\n")
+        except ValueError:
+            return self.reserve(len(text))
+        last_line = text[last_newline+1:]
+        return self.reserve(len(last_line))
 
     @contextlib.contextmanager
     def sub(self):

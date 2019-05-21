@@ -3,83 +3,109 @@ import logging
 import io
 import token
 import tokenize
+import typing
 
 from typed_ast import ast3
-from pyfmt import alignment, body, constants, decorators, functions, strings, types
+from pyfmt import alignment
+from pyfmt import body
+from pyfmt import constants
+from pyfmt import decorators
+from pyfmt import errors
+from pyfmt import functions
+from pyfmt import strings
+from pyfmt import types
 
-def _format_assert(value, context):
+def _format_assert(value: ast3.Assert, context: types.Context) -> typing.Text:
 	if value.msg:
 		assert_ = "assert {test}, ".format(
 			test=_format_value(value.test, context),
 		)
-		msg = _format_value(value.msg, context.reserve(len(assert_)))
+		subcontext = context.reserve_text(assert_)
+		msg = _format_value(value.msg, subcontext)
 		return "{assert_}{msg}".format(
 			assert_=assert_,
 			msg=msg,
 		)
 	return "assert {}".format(_format_value(value.test, context))
 
-def _format_assign(value, context):
+def _format_assign(value: ast3.Assign, context: types.Context) -> typing.Text:
 	targets = [_format_value(t, context.override(suppress_tuple_parens=True)) for t in value.targets]
 	# We can't suppress the parens with a newline because that will create
 	# syntax errors.
 	if any("\n" in t for t in targets):
 		targets = [_format_value(t, context) for t in value.targets]
-	value = _format_value(value.value, context.reserve(len(targets) + 3))
+	subcontext = context.reserve_text(targets[-1])
+	value = _format_value(value.value, subcontext)
 	return "{targets} = {value}".format(
 		targets=", ".join(targets),
 		value=value,
 	)
 
-def _format_attribute(value, context):
+def _format_attribute(value: ast3.Attribute, context: types.Context) -> typing.Text:
 	return "{value}.{attr}".format(
 		value = _format_value(value.value, context),
 		attr = value.attr,
 	)
 
-def _format_aug_assign(value, context):
+def _format_aug_assign(value: ast3.AugAssign, context: types.Context) -> typing.Text:
 	return "{left} {op}= {right}".format(
 		left  = _format_value(value.target, context),
 		op	= _format_value(value.op, context),
 		right = _format_value(value.value, context),
 	)
 
-def _format_binop(value, context):
+def _format_binop(value: ast3.BinOp, context: types.Context) -> typing.Text:
 	return "{left} {op} {right}".format(
 		left  = _format_value(value.left, context),
 		op	= _format_value(value.op, context),
 		right = _format_value(value.right, context),
 	)
 
-def _format_boolop(value, context):
+def _format_boolop(value: ast3.BoolOp, context: types.Context) -> typing.Text:
 	parts = [_format_value(v, context) for v in value.values]
 	op_part = _format_value(value.op, context)
 	return " {} ".format(op_part).join(parts)
 
 
-def _format_call(value, context):
+def _format_call(value: ast3.Call, context: types.Context) -> typing.Text:
 	"""Format a function call like 'print(a*b, foo=x)'"""
-	result = _format_call_horizontal(value, context)
-	last_newline = result.rfind("\n")
-	last_line = result[last_newline:] if last_newline > 0 else result
-	if len(last_line) < context.remaining_line_length:
-		return result
-	return _format_call_vertical(value, context)
+	try:
+		return _format_call_horizontal(value, context)
+	except errors.NotPossible:
+		return _format_call_vertical(value, context)
 
-def _format_call_horizontal(value, context):
+def _format_call_horizontal(value: ast3.Call, context: types.Context) -> typing.Text:
 	"""Format a call like 'print(a*b)' with the arguments in a line."""
 	arguments = [
 		_format_value(arg, context) for arg in value.args
 	] + [
 		_format_value(kwarg, context.override(inline=True)) for kwarg in value.keywords
 	]
-	return "{func}({arguments})".format(
+	if any(["\n" in a for a in arguments]):
+		raise errors.NotPossible("newlines present in arguments")
+		
+	result = "{func}({arguments})".format(
 		arguments=", ".join(arguments),
 		func=_format_value(value.func, context),
 	)
+	lines = result.split("\n")
+	if len(lines[0]) > context.remaining_line_length:
+		raise errors.NotPossible("first line too long")
+	if len(lines) > 1 and any([len(l) > context.max_line_length for l in lines[1:]]):
+		raise errors.NotPossible("later line too long")
+	return result
 
-def _format_call_vertical(value, context):
+def _format_call_vertical(value: ast3.Call, context: types.Context) -> typing.Text:
 	"""Format a call like 'print(a*b, x=z)' with arguments vertically lined up."""
+	# If possible, prefer to put the first arg on the
+	# same line as the function name. This only works
+	# if we have no explicitly-named args because
+	# otherwise we have one arg not line up badly.
+	try:
+		if value.args and not value.keywords:
+			return _format_call_vertical_same_line(value, context)
+	except errors.NotPossible:
+		pass
 	args = [
 		_format_value(arg, context) for arg in value.args
 	]
@@ -87,16 +113,56 @@ def _format_call_vertical(value, context):
 	kwargs = [
 		_format_keyword(k, context, pad_key=max_kwarg_key_len) for k in sorted(value.keywords, key=lambda keyword: keyword.arg)
 	]
-	if args:
-		return "{func}({arguments})".format(
-			arguments=",\n\t".join(args + kwargs),
-			func=_format_value(value.func, context)
-		)
-	return "{func}(\n\t{kwargs})".format(
-		kwargs=",\n\t".join(kwargs),
-		func=_format_value(value.func, context))
+	all_args = args + kwargs
+	# Add "," to the end of all but the last argument
+	for i, arg in enumerate(all_args[:-1]):
+		all_args[i] = arg + ","
+	# Add indentation to all but the first argument
+	# for i, arg in enumerate(all_args[1:]):
+		# all_args[i] = context.tab + arg
+	# Switch from considering 'args' to considering 'lines'
+	# because we may have args that have already introduced
+	# their own newlines
+	arg_lines = "\n".join(all_args).split("\n")
+	func = _format_value(value.func, context)
+	arguments = "\n".join(context.add_indent(arg_lines))
+	return "{func}(\n{arguments})".format(
+		arguments=arguments,
+		func=_format_value(value.func, context)
+	)
 
-def _format_class(value, context):
+def _format_call_vertical_same_line(value: ast3.Call, context: types.Context) -> typing.Text:
+	"""Format a call like print(a, b) as print(a,\n\tb)."""
+	assert not value.keywords
+	assert value.args
+	preamble = _format_value(value.func, context) + "("
+	# +1 for either a comma or a close paren
+	first_arg = _format_value(value.args[0], context.reserve(len(preamble) + 1))
+	preamble_and_arg = preamble + first_arg
+	# The first arg may have an embedded newline in it.
+	# If so, make sure to only consider up to that newline.
+	try:
+		first_line_newline = preamble_and_arg.index("\n")
+		first_line = preamble_and_arg[:first_line_newline]
+	except ValueError:
+		first_line = preamble_and_arg
+	# >= rather than > because we need one more character for "," or ")"
+	if len(first_line) >= context.remaining_line_length:
+		raise errors.NotPossible("first line is too long.")
+	if len(value.args) == 1:
+		return preamble_and_arg + ")"
+	rest = [
+		_format_value(arg, context) for arg in value.args[1:]
+	]
+	# Since "rest" may have parts with newlines in them we need
+	# to merge these lines and resplit them. We merge first
+	# because that's where we know we need to insert commas.
+	rest_joined = ",\n".join(rest)
+	rest_lines = rest_joined.split("\n")
+	rest_indented = "\n".join(context.add_indent(rest_lines))
+	return preamble_and_arg + ",\n" + rest_indented + ")"
+
+def _format_class(value: ast3.ClassDef, context: types.Context) -> typing.Text:
 	with context.sub() as sub:
 		decorators_ = decorators.format(value.decorator_list, context)
 		body_ = body.format(value.body, context)
@@ -107,7 +173,7 @@ def _format_class(value, context):
 		name=value.name,
 	)
 
-def _format_compare(value, context):
+def _format_compare(value: ast3.Compare, context: types.Context) -> typing.Text:
 	comparisons = [
 		"{} {}".format(
 			_format_value(op, context),
@@ -122,13 +188,13 @@ def _format_compare(value, context):
 		comparisons=" ".join(comparisons),
 	)
 
-def _format_comprehension(value, context):
+def _format_comprehension(value: ast3.comprehension, context: types.Context) -> typing.Text:
 	return "for {target} in {iter}".format(
 		target=_format_value(value.target, context),
 		iter=_format_value(value.iter, context),
 	)
 
-def _format_dict(value, context):
+def _format_dict(value: ast3.Dict, context: types.Context) -> typing.Text:
 	"Format a dictionary, choosing the best approach of several"
 	data = {
 		_format_value(k, context):
@@ -137,12 +203,12 @@ def _format_dict(value, context):
 	pairs = [
 		(k, data[k]) for k in ordering]
 	short = _format_dict_short(pairs, context)
-	if len(short) <= context.max_line_length:
+	if len(short) <= context.remaining_line_length:
 		return short
 	medium = _format_dict_medium(pairs, context)
 	return medium
 
-def _format_dict_comprehension(comprehension, context):
+def _format_dict_comprehension(comprehension: ast3.DictComp, context: types.Context) -> typing.Text:
 	"Format a dict comprehension, like {a: b for a, b in foo}."
 	key = _format_value(comprehension.key, context.reserve(1))
 	value = _format_value(comprehension.value, context.reserve(1 + len(key)))
@@ -153,19 +219,19 @@ def _format_dict_comprehension(comprehension, context):
 		value      = value,
 	)
 
-def _format_dict_medium(pairs, context):
+def _format_dict_medium(pairs, context: types.Context) -> typing.Text:
 	"Format a dictionary as if were medium length, one key/value pair per line"
 	return "{{\n\t{}\n}}".format(alignment.on_character(pairs, ": ", joiner="\n\t", tail=","))
 
-def _format_dict_short(pairs, context):
+def _format_dict_short(pairs, context: types.Context) -> typing.Text:
 	"Format a dictionary as if it were quite short"
 	parts = ["{}: {}".format(k, v) for k, v in pairs]
 	return "{{{}}}".format(", ".join(parts))
 
-def _format_eq(value, context):
+def _format_eq(value: ast3.Eq, context: types.Context) -> typing.Text:
 	return "=="
 
-def _format_except_handler(value, context):
+def _format_except_handler(value: ast3.ExceptHandler, context: types.Context) -> typing.Text:
 	body_ = body.format(value.body, context)
 	type_ = _format_value(value.type, context.reserve(len("except ")))
 	return "except {type_}{name}:\n{body}".format(
@@ -174,10 +240,10 @@ def _format_except_handler(value, context):
 		type_ = type_,
 	)
 
-def _format_expression(value, context):
+def _format_expression(value: ast3.Expression, context: types.Context) -> typing.Text:
 	return _format_value(value.value, context)
 
-def _format_for(value, context):
+def _format_for(value: ast3.For, context: types.Context) -> typing.Text:
 	else_ = ""
 	if value.orelse:
 		elsebody = body.format(value.orelse, context)
@@ -189,14 +255,14 @@ def _format_for(value, context):
 		target=_format_value(value.target, context.override(suppress_tuple_parens=True)),
 	)
 
-def _format_generator(value, context):
+def _format_generator(value: ast3.GeneratorExp, context: types.Context) -> typing.Text:
 	generators = "".join([_format_value(g, context) for g in value.generators])
 	return "{} {}".format(
 		_format_value(value.elt, context),
 		generators,
 	)
 
-def _format_orelse(orelse, context):
+def _format_orelse(orelse, context: types.Context) -> typing.Text:
 	if not orelse:
 		return ""
 	# value.orelse will either be a list of ast3.If
@@ -212,7 +278,7 @@ def _format_orelse(orelse, context):
 		body_ = body.format(orelse, context)
 	return "\nelse:\n{}".format(body_)
 
-def _format_if(value, context, prefix="if"):
+def _format_if(value: ast3.If, context: types.Context, prefix="if") -> typing.Text:
 	test = _format_value(value.test, context)
 	with context.sub() as sub:
 		body_ = body.format(value.body, context)
@@ -224,39 +290,39 @@ def _format_if(value, context, prefix="if"):
 		test=test,
 	)
 
-def _format_if_exp(value, context):
+def _format_if_exp(value: ast3.IfExp, context: types.Context) -> typing.Text:
 	return "{result} if {test} else {orelse}".format(
 		orelse = context.format_value(value.orelse, context),
 		result = context.format_value(value.body, context),
 		test   = context.format_value(value.test, context),
 	)
 
-def _format_import(imp, context):
+def _format_import(imp: ast3.Import, context: types.Context):
 	return "import {}".format(
 		', '.join(sorted(n.name for n in imp.names)))
 
-def _format_import_from(imp, context):
+def _format_import_from(imp, context: types.Context):
 	return "from {} import {}".format(
 		imp.module,
 		', '.join(sorted(n.name for n in imp.names)))
 
-def _format_index(value, context):
+def _format_index(value, context: types.Context):
 	return _format_value(value.value, context)
 
-def _format_list(value, context):
+def _format_list(value, context: types.Context):
 	elts = [
 		_format_value(e, context) for e in value.elts
 	]
 	return "[{}]".format(", ".join(elts))
 
-def _format_list_comprehension(comp, context):
+def _format_list_comprehension(comp, context: types.Context):
 	generators = [_format_value(g, context) for g in comp.generators]
 	return "[{elt} {generators}]".format(
 		elt = _format_value(comp.elt, context),
 		generators = " ".join(generators),
 	)
 
-def _format_keyword(value, context, pad_key=None):
+def _format_keyword(value, context: types.Context, pad_key=None):
 	pad_key = pad_key or len(value.arg)
 	pattern = "{{arg: <{}}}{{equals}}{{value}}".format(pad_key)
 	return pattern.format(
@@ -265,26 +331,26 @@ def _format_keyword(value, context, pad_key=None):
 		value = _format_value(value.value, context),
 	)
 
-def _format_multiplication(value, context):
+def _format_multiplication(value, context: types.Context):
 	return "*"
 
-def _format_name(value, context):
+def _format_name(value, context: types.Context):
 	return str(value.id)
 
-def _format_name_constant(value, context):
+def _format_name_constant(value, context: types.Context):
 	return str(value.value)
 
-def _format_number(value, context):
+def _format_number(value, context: types.Context):
 	return str(value.n)
 
-def _format_raise(value, context):
+def _format_raise(value, context: types.Context):
 	assert value.cause is None
 	return "raise {}".format(_format_value(value.exc, context.reserve(len("raise "))))
 
-def _format_return(value, context):
+def _format_return(value, context: types.Context):
 	return "return {}".format(_format_value(value.value, context.reserve(len("return "))))
 
-def _format_slice(value, context):
+def _format_slice(value, context: types.Context):
 	lower = _format_value(value.lower, context) if value.lower else ""
 	upper = _format_value(value.upper, context) if value.upper else ""
 	step = ":" + _format_value(value.step, context) if value.step else ""
@@ -294,16 +360,16 @@ def _format_slice(value, context):
 		upper = upper,
 	)
 
-def _format_starred(value, context):
+def _format_starred(value, context: types.Context):
 	return "*" + value.value.id
 
-def _format_subscript(value, context):
+def _format_subscript(value, context: types.Context):
 	return "{value}[{slice_}]".format(
 		value=_format_value(value.value, context),
 		slice_=_format_value(value.slice, context),
 	)
 
-def _format_try(value, context):
+def _format_try(value, context: types.Context):
 	else_ = ""
 	if value.orelse:
 		elsebody = body.format(value.orelse, context)
@@ -320,47 +386,45 @@ def _format_try(value, context):
 		handlers="\n".join(handlers),
 	)
 
-def _format_tuple(value, context):
+def _format_tuple(value, context: types.Context):
 	content = [_format_value(elt, context) for elt in value.elts]
 	result = ", ".join(content)
 	if not context.suppress_tuple_parens:
 		result = "({})".format(result)
-	if len(result) <= context.max_line_length:
+	if len(result) <= context.remaining_line_length:
 		return result
 	result = ",\n\t".join(content)
 	if not context.suppress_tuple_parens:
 		return "(\n\t{},\n)".format(result)
 	return result
 
-def _format_unary_op(value, context):
+def _format_unary_op(value, context: types.Context):
 	return "{op}{operand}".format(
 		op=_format_value(value.op, context),
 		operand=_format_value(value.operand, context),
 	)
 
-def _format_value(value, context):
+def _format_value(value, context: types.Context):
 	formatter = FORMATTERS.get(type(value))
 	if formatter is None:
+		import pdb;pdb.set_trace()
 		raise Exception("Need to write a formatter for {}".format(type(value)))
 	return formatter(value, context)
 
-def _format_yield(value, context):
-	return "yield {}".format(_format_value(value.value, context))
-
-def _format_while(value, context):
+def _format_while(value, context: types.Context):
 	return "while {condition}:\n{body}{orelse}".format(
 		body=body.format(value.body, context),
 		condition=_format_value(value.test, context),
 		orelse=_format_orelse(value.orelse, context),
 	)
 
-def _format_with(value, context):
+def _format_with(value, context: types.Context):
 	return "with {context}:\n{body}".format(
 		body=body.format(value.body, context),
 		context=_format_value(value.items[0], context),
 	)
 
-def _format_withitem(value, context):
+def _format_withitem(value, context: types.Context):
 	optional = ""
 	if value.optional_vars:
 		optional = " as " + _format_value(value.optional_vars, context)

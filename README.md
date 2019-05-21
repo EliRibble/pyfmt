@@ -98,6 +98,37 @@ This seems like a bug. It's not. The two are logically
 equivalent and one is shorter than the other, so we
 prefer it.
 
+## Put all function call kwargs on the same indentation level.
+
+When given code like:
+
+```
+do_something(a=1, b=2, param=3)
+```
+
+The formatter will output
+
+```
+do_something(
+	a     = 1,
+	b     = 2,
+	param = 3)
+```
+
+There are several alternatives we could have chosen (See Non-Egyptian Params). Specifically this questions is about
+why we don't put "a=1" on the same line, like this:
+
+```
+do_something(a=1,
+	b     = 2,
+	param = 3)
+```
+
+The reason is because we want the kwargs to line up like a table that is readable. If we don't put all of the parameters
+on the same indentation level we ruin that.
+
+This does not apply to unnamed args (parameters without a "name=") which can't line up in a table and so appear on the same line, if possible.
+
 # Hacking
 
 Create a virtualenv. `pip install -e .` at the root of the repository. `nose2` to run tests.
