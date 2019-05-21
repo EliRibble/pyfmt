@@ -433,6 +433,9 @@ def _format_withitem(value, context: types.Context):
 		optional=optional,
 	)
 
+def _format_yield(value, context: types.Context):
+	return "yield {}".format(_format_value(value.value, context))
+
 FORMATTERS = {
 	ast3.Add: lambda x, y: "+",
 	ast3.And: lambda x, y: "and",
