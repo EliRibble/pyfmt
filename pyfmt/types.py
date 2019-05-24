@@ -28,11 +28,32 @@ class Context():
 
 		Args:
 			lines: a list of lines to indent and join
-		Returns: The joined lines with indentation
+		Returns: The lines with indentation
 		"""
 		return [
 			self.tab + line if line else ""
 			for line in lines]
+
+	def add_indent_string(self, text: typing.Text) -> typing.Text:
+		"""Indent a string, if it has newlines.
+
+		This will take a string of the form "(\nfoo,\nbar,\n)"
+		and return a string of the form "(\n\tfoo,\n\tbar,\n\t).
+		In other words, it will indent all lines but the first.
+		This will not indent beyond the current context's indentation
+		level.
+		"""
+		lines = text.split("\n")
+		if len(lines) == 1:
+			return text
+		indented = []
+		max_tab = self.tab * self.indent
+		for line in lines[1:]:
+			if line.startswith(max_tab):
+				indented.append(line)
+			else:
+				indented.append(self.tab + line)
+		return lines[0] + "\n" + ("\n".join(indented))
 
 	def get_inline_comment(self, lineno):
 		"""Get comment in the provided line."""

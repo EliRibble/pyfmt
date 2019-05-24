@@ -36,6 +36,8 @@ def _format_assign(value: ast3.Assign, context: types.Context) -> typing.Text:
 		targets = [_format_value(t, context) for t in value.targets]
 	subcontext = context.reserve_text(targets[-1])
 	value = _format_value(value.value, subcontext)
+	with context.sub() as sub:
+		value = sub.add_indent_string(value)
 	return "{targets} = {value}".format(
 		targets=", ".join(targets),
 		value=value,
